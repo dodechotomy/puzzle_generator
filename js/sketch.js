@@ -1,8 +1,10 @@
 var start = 0;
 var rings = [];
+var pastRings = [];
 var thickness = 50;
-var sectors = 6;
-var pathCount = 2;
+var sectors = 20;
+var pathCount = 6;
+var ringCount = 4;
 const INNER = 0,
   OUTER = 1;
 
@@ -23,10 +25,22 @@ function draw() {
 }
 
 function keyPressed() {
-  clear();
-  createRings();
-  start = millis();
-  loop();
+  console.log(key);
+  if (key.toLowerCase() == 'n') {
+    pastRings.push(rings);
+    createRings();
+    clear();
+    start = millis();
+    loop();
+  }
+  if (key.toLowerCase() == 'p') {
+    if (rings.length > 0) {
+      rings = pastRings.pop();
+      clear();
+      start = millis();
+      loop();
+    }
+  }
 }
 
 function windowResized() {
@@ -36,7 +50,7 @@ function windowResized() {
 function createRings() {
   rings = [];
   var prevRing = null;
-  for (var i = 0; i < 4; i++) {
+  for (var i = 0; i < ringCount; i++) {
     var c = createVector(width / 2, height / 2);
     var innerRadius = thickness * (i + 1);
     var innerConnections = sectors;
@@ -55,17 +69,16 @@ function createRings() {
   for (var j = 0; j < pathCount; j++) {
     var r = rings[0];
     var innerConns = filterConnectors(r, true, INNER);
-    var outerConns = filterConnectors(r, true, OUTER);
     var start = randomItem(innerConns);
+    var outerConns = filterConnectors(r, true, OUTER, start.index);
     var end = randomItem(outerConns);
-    makeSpline(r, start, end, (j+1)/(pathCount+1));
-    // r.splines.push(s);
+    makeSpline(r, start, end, (j + 1) / (pathCount + 1));
   }
-  for(var i = 1; i < rings.length;i++){
-    for(var j =0; j < rings[i-1].splines.length;j++){
-      var s = rings[i-1].splines[j];
+  for (var i = 1; i < rings.length; i++) {
+    for (var j = 0; j < rings[i - 1].splines.length; j++) {
+      var s = rings[i - 1].splines[j];
       var start = s.end;
-      var outerConns = filterConnectors(rings[i], true, OUTER);
+      var outerConns = filterConnectors(rings[i], true, OUTER, start.index);
       var end = randomItem(outerConns);
       makeSpline(rings[i], start, end, s.level);
     }
@@ -90,7 +103,9 @@ function makeRing(center, innerRadius, thickness, innerConnections = sectors, ou
       ring.innerConnections.push({
         index: i,
         position: position,
-        splines: []
+        splines: {},
+        innerRing: null,
+        outerRing: ring
       });
     }
   } else if (typeof innerConnections === 'array') {
@@ -102,7 +117,9 @@ function makeRing(center, innerRadius, thickness, innerConnections = sectors, ou
       ring.outerConnections.push({
         index: i,
         position: position,
-        splines: []
+        splines: {},
+        innerRing: ring,
+        outerRing: null
       });
     }
   } else if (typeof outerConnections === 'array') {
@@ -134,17 +151,68 @@ function drawRing(ring) {
 
 function filterConnectors(ring, free, side) {
   var list = getConnections(ring);
+
+  if (free === true) {
+    list = list.filter(function(c) {
+      var filled = false;
+      if (c.innerRing == ring) {
+        if (c.splines.outer) {
+          filled = true;
+        }
+      }
+      if (c.outerRing == ring) {
+        if (c.splines.inner) {
+          filled = true;
+        }
+      }
+
+      return !filled;
+    });
+  }
   if (side === INNER) {
-    list = ring.innerConnections;
+    list = list.filter(c => c.outerRing == ring);
   }
   if (side === OUTER) {
-    list = ring.outerConnections;
+    list = list.filter(c => c.innerRing == ring);
+  }
+}
+if (list.length == 0) {
+  throw "no valid connections!";
+}
+return list;
+}
+
+function parityFilter(ring, list, conn1) {
+  var list = getConnections(ring);
+
+  if (free === true) {
+    list = list.filter(function(c) {
+      var filled = false;
+      if (c.innerRing == ring) {
+        if (c.splines.outer) {
+          filled = true;
+        }
+      }
+      if (c.outerRing == ring) {
+        if (c.splines.inner) {
+          filled = true;
+        }
+      }
+
+      return !filled;
+    });
   }
 
-  if (typeof free === 'boolean') {
-    list = list.filter(conn => (conn.target == null) == free)
+  if (typeof adjacentIndex === 'number') {
+    list = list.filter(function(c) {
+      var adjacent = (c.index >= adjacentIndex - 1) && (c.index <= adjacentIndex + 1);
+      return adjacent;
+    });
   }
-  return Array.from(list);
+  if (list.length == 0) {
+    throw "no valid connections!";
+  }
+  return list;
 }
 
 function makeSpline(ring, conn1, conn2, level = 0.5) {
@@ -154,39 +222,124 @@ function makeSpline(ring, conn1, conn2, level = 0.5) {
     end: conn2,
     level: level
   };
-  conn1.splines.push(spline);
-  conn2.splines.push(spline);
+  connectSpline(spline, conn1);
+  connectSpline(spline, conn2);
   ring.splines.push(spline);
+}
+
+function connectSpline(s, c) {
+  if (c.innerRing == s.ring) {
+    if (c.splines.hasOwnProperty('outer')) {
+      console.log('Overloaded connection!');
+      console.log(c);
+      console.log(s);
+    }
+    c.splines.outer = s;
+  }
+  if (c.outerRing == s.ring) {
+    if (c.splines.hasOwnProperty('inner')) {
+      console.log('Overloaded connection!');
+      console.log(c);
+      console.log(s);
+    }
+    c.splines.inner = s;
+  }
 }
 
 function drawSpline(spline) {
   var ring = spline.ring;
-  var innerAngle = spline.start.position.heading();
-  var outerAngle = spline.end.position.heading();
-  if(outerAngle<innerAngle){
-    var t = outerAngle;
-    outerAngle = innerAngle;
-    innerAngle = t;
+  var startAngle = spline.start.position.heading();
+  var endAngle = spline.end.position.heading();
+  if (startAngle > endAngle) {
+    var t = startAngle;
+    startAngle = endAngle;
+    endAngle = t;
+  }
+  if (abs(startAngle - endAngle) > PI) {
+    var t = startAngle;
+    startAngle = endAngle;
+    endAngle = t;
   }
   var middleRadius = ring.innerRadius + (ring.outerRadius - ring.innerRadius) * spline.level;
   var arc1 = spline.start.position.copy().setMag(middleRadius);
   var arc2 = spline.end.position.copy().setMag(middleRadius);
   strokeWeight(2);
-  stroke("blue");
+  stroke(0, (1 - spline.level) * 255, spline.level * 255);
   line(spline.start.position.x, spline.start.position.y, arc1.x, arc1.y);
-  arc(0, 0, middleRadius * 2, middleRadius * 2, innerAngle, outerAngle);
+  arc(0, 0, middleRadius * 2, middleRadius * 2, startAngle, endAngle);
   line(arc2.x, arc2.y, spline.end.position.x, spline.end.position.y);
 }
 
-function useConnection(ring, conn) {
-  var i = ring.freeConnections.inner.indexOf(conn);
-  if (i >= 0) {
-    ring.freeConnections.inner.splice(i, 1);
-    ring.usedConnections.inner.push(conn);
+function createInitialCluster(list) {
+  if (list.length < 1) {
+    return [];
   }
-  i = ring.freeConnections.outer.indexOf(conn);
-  if (i >= 0) {
-    ring.freeConnections.outer.splice(i, 1);
-    ring.usedConnections.outer.push(conn);
+  var cluster = [];
+  var prevNode = null;
+  for (var i = 0; i < list.length; i++) {
+    var node = {
+      target: list[i],
+      index: i,
+      prev: prevNode,
+      next: null
+    };
+    if (prevNode) {
+      prevNode.next = node;
+    }
+    prevNode = node;
+    cluster.push(node);
   }
+  prevNode.next = cluster[0];
+  cluster[0].prev = prevNode;
+  return cluster;
+}
+
+function pickTwoNodes(cluster) {
+  var node1 = cluster[floor(random(cluster.length))];
+  var filteredCluster = cluster.filter(function(n) {
+    return (n.index - node1.index) % 2 == 1;
+  });
+  var node2 = filteredCluster[floor(random(filteredCluster.length))];
+  return [node1, node2];
+}
+
+function removeAndRecluster(cluster, a, b) {
+  var iA = a.prev;
+  var oA = a.next;
+  var iB = b.prev;
+  var oB = b.next;
+  iA.next = oB;
+  oA.prev = iB;
+  iB.next = oA;
+  oB.prev = iA;
+  remove(cluster, a);
+  remove(cluster, b);
+  var newClusters = extractClusters(cluster);
+}
+
+function remove(array, item) {
+  var i = array.indexOf(item);
+  if (i == -1) {
+    return null;
+  }
+  array.splice(i, 1);
+  return true;
+}
+
+function extractClusters(oldCluster) {
+  var newClusters = [];
+  while (oldCluster.length > 0) {
+    var cluster = [];
+    var start = oldCluster[0];
+    remove(oldCluster, start);
+    cluster.push(start)
+    var c = start;
+    while (c.next && (c.next != start)) {
+      remove(oldCluster, c.next);
+      cluster.push(c.next)
+      c = c.next;
+    }
+    newClusters.push(cluster);
+  }
+  return newClusters;
 }
