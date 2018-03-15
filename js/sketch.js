@@ -2,7 +2,7 @@ var start = 0;
 var rings = [];
 var pastRings = [];
 var thickness = 50;
-var sectors = 20;
+var sectors = 10;
 var pathCount = 6;
 var ringCount = 4;
 const INNER = 0,
@@ -62,25 +62,19 @@ function createRings() {
     r.innerRing = prevRing;
     if (prevRing) {
       prevRing.outerRing = r;
+      for (var j = 0; j < prevRing.outerConnections.length; j++) {
+        prevRing.outerConnections[j].outerRing = r;
+      }
     }
     rings.push(r);
     prevRing = r;
   }
-  for (var j = 0; j < pathCount; j++) {
-    var r = rings[0];
-    var innerConns = filterConnectors(r, true, INNER);
-    var start = randomItem(innerConns);
-    var outerConns = filterConnectors(r, true, OUTER, start.index);
-    var end = randomItem(outerConns);
-    makeSpline(r, start, end, (j + 1) / (pathCount + 1));
-  }
-  for (var i = 1; i < rings.length; i++) {
-    for (var j = 0; j < rings[i - 1].splines.length; j++) {
-      var s = rings[i - 1].splines[j];
-      var start = s.end;
-      var outerConns = filterConnectors(rings[i], true, OUTER, start.index);
-      var end = randomItem(outerConns);
-      makeSpline(rings[i], start, end, s.level);
+
+  for (var i = 0; i < rings.length; i++) {
+    var r = rings[i];
+    var splines = clusterConnections(r);
+    for (var j = 0; j < splines.length; j++) {
+      makeSpline(r, splines[j][0], splines[j][1], (j + 1) / (splines.length + 1));
     }
   }
 }
@@ -108,7 +102,7 @@ function makeRing(center, innerRadius, thickness, innerConnections = sectors, ou
         outerRing: ring
       });
     }
-  } else if (typeof innerConnections === 'array') {
+  } else if (Array.isArray(innerConnections)) {
     ring.innerConnections = innerConnections;
   }
   if (typeof outerConnections === 'number') {
@@ -122,7 +116,7 @@ function makeRing(center, innerRadius, thickness, innerConnections = sectors, ou
         outerRing: null
       });
     }
-  } else if (typeof outerConnections === 'array') {
+  } else if (Array.isArray(outerConnections)) {
     ring.outerConnections = outerConnections;
   }
   return ring;
@@ -130,11 +124,6 @@ function makeRing(center, innerRadius, thickness, innerConnections = sectors, ou
 
 function getConnections(ring) {
   return concat(ring.innerConnections, ring.outerConnections);
-}
-
-function randomItem(array) {
-  var rand = random();
-  return array[Math.floor(rand * array.length)];
 }
 
 function drawRing(ring) {
@@ -147,84 +136,6 @@ function drawRing(ring) {
     drawSpline(ring.splines[i]);
   }
   pop();
-}
-
-function filterConnectors(ring, free, side) {
-  var list = getConnections(ring);
-
-  if (free === true) {
-    list = list.filter(function(c) {
-      var filled = false;
-      if (c.innerRing == ring) {
-        if (c.splines.outer) {
-          filled = true;
-        }
-      }
-      if (c.outerRing == ring) {
-        if (c.splines.inner) {
-          filled = true;
-        }
-      }
-
-      return !filled;
-    });
-  }
-  if (side === INNER) {
-    list = list.filter(c => c.outerRing == ring);
-  }
-  if (side === OUTER) {
-    list = list.filter(c => c.innerRing == ring);
-  }
-}
-if (list.length == 0) {
-  throw "no valid connections!";
-}
-return list;
-}
-
-function parityFilter(ring, list, conn1) {
-  var list = getConnections(ring);
-
-  if (free === true) {
-    list = list.filter(function(c) {
-      var filled = false;
-      if (c.innerRing == ring) {
-        if (c.splines.outer) {
-          filled = true;
-        }
-      }
-      if (c.outerRing == ring) {
-        if (c.splines.inner) {
-          filled = true;
-        }
-      }
-
-      return !filled;
-    });
-  }
-
-  if (typeof adjacentIndex === 'number') {
-    list = list.filter(function(c) {
-      var adjacent = (c.index >= adjacentIndex - 1) && (c.index <= adjacentIndex + 1);
-      return adjacent;
-    });
-  }
-  if (list.length == 0) {
-    throw "no valid connections!";
-  }
-  return list;
-}
-
-function makeSpline(ring, conn1, conn2, level = 0.5) {
-  var spline = {
-    ring: ring,
-    start: conn1,
-    end: conn2,
-    level: level
-  };
-  connectSpline(spline, conn1);
-  connectSpline(spline, conn2);
-  ring.splines.push(spline);
 }
 
 function connectSpline(s, c) {
@@ -270,6 +181,27 @@ function drawSpline(spline) {
   line(arc2.x, arc2.y, spline.end.position.x, spline.end.position.y);
 }
 
+function clusterConnections(ring, allowBacktrack = true) {
+  var connections = getConnections(ring);
+  var clusters = [];
+  var splines = [];
+  var initialCluster = createInitialCluster(connections);
+  clusters.push(initialCluster);
+  while (clusters.length > 0) {
+    var c = clusters.pop();
+    var nodes = pickTwoNodes(c, allowBacktrack);
+    var spline = {
+      start: nodes[0].target,
+      end: nodes[1].target
+      ring: ring
+    };
+    splines.push(s)
+    var newClusters = removeAndRecluster(c, nodes[0], nodes[1]);
+    clusters = clusters.concat(newClusters);
+  }
+  return splines;
+}
+
 function createInitialCluster(list) {
   if (list.length < 1) {
     return [];
@@ -294,13 +226,30 @@ function createInitialCluster(list) {
   return cluster;
 }
 
-function pickTwoNodes(cluster) {
+function pickTwoNodes(cluster, allowBacktrack) {
   var node1 = cluster[floor(random(cluster.length))];
   var filteredCluster = cluster.filter(function(n) {
-    return (n.index - node1.index) % 2 == 1;
+    var diff = abs((n.index - node1.index)) % 2
+    return diff == 1
   });
+  if (!allowBacktrack) {
+    filteredCluster = filteredCluster.filter(function(n) {
+      var matchInner = n.innerRing && (n.innerRing == node1.innerRing);
+      var matchOuter = n.outerRing && (n.outerRing == node1.outerRing);
+      return !(matchInner || matchOuter);
+    });
+  }
   var node2 = filteredCluster[floor(random(filteredCluster.length))];
   return [node1, node2];
+}
+
+function removeItem(array, item) {
+  var i = array.indexOf(item);
+  if (i == -1) {
+    return null;
+  }
+  array.splice(i, 1);
+  return true;
 }
 
 function removeAndRecluster(cluster, a, b) {
@@ -312,34 +261,140 @@ function removeAndRecluster(cluster, a, b) {
   oA.prev = iB;
   iB.next = oA;
   oB.prev = iA;
-  remove(cluster, a);
-  remove(cluster, b);
+  removeItem(cluster, a);
+  removeItem(cluster, b);
   var newClusters = extractClusters(cluster);
+  return newClusters;
 }
 
-function remove(array, item) {
-  var i = array.indexOf(item);
-  if (i == -1) {
-    return null;
-  }
-  array.splice(i, 1);
-  return true;
-}
 
 function extractClusters(oldCluster) {
   var newClusters = [];
   while (oldCluster.length > 0) {
     var cluster = [];
     var start = oldCluster[0];
-    remove(oldCluster, start);
+    removeItem(oldCluster, start);
     cluster.push(start)
     var c = start;
     while (c.next && (c.next != start)) {
-      remove(oldCluster, c.next);
+      removeItem(oldCluster, c.next);
       cluster.push(c.next)
       c = c.next;
     }
     newClusters.push(cluster);
   }
   return newClusters;
+}
+
+function shadowGraph(ring, splines, checkCycles = true) {
+  var innerConnections = ring.innerConnections;
+  var outerConnections = ring.outerConnections;
+  var crossings = splines.filter(function(s) {
+    return innerConnections.includes(s.start) && outerConnections.includes(s.end);
+  });
+  var innerBacktracks = splines.filter(function(s) {
+    return innerConnections.includes(s.start) && innerConnections.includes(s.end);
+  });
+  var outerBacktracks = splines.filter(function(s) {
+    return outerConnections.includes(s.start) && outerConnections.includes(s.end);
+  });
+  findBacktrackTrees(innerConnections, innerBacktracks);
+  findBacktrackTrees(outerConnections, outerBacktracks);
+
+  //Find neighbours for crossings
+  for (var i = 0; i < crossings.length; i++) {
+    var s = crossings[i];
+    var direction = 1;
+    if (innerConnections.includes(s.start)) {
+      direction *= -1;
+    }
+    //Inside neighbours
+    s.inside = scanNeighbours(direction, s.start, s.end, innerConnections, innerBacktracks, crossings);
+    //Outside neighbours
+    direction *= -1;
+    s.outside = scanNeighbours(direction, s.end, s.start, outerConnections, outerBacktracks, crossings);
+  }
+  //find cycles
+  var noCycles = true;
+  if (checkCycles) {
+    crossings.forEach(function(s) {
+      s.alive = true;
+    });
+    var pruned = 1;
+    while (pruned > 0) {
+      crossings.forEach(function(cross) {
+        var aliveInside = cross.inside.some(function(s) {
+          return s.alive;
+        })
+        var aliveOutside = cross.outside.some(function(s) {
+          return s.alive;
+        })
+        cross.stillAlive = aliveInside && aliveOutside;
+      });
+      pruned = 0;
+      crossings.forEach(function(cross) {
+        if (cross.alive && !cross.stillAlive) {
+          pruned++;
+        }
+        cross.alive = cross.stillAlive;
+      });
+    }
+    var leftAlive = crossings.filter(cross => cross.alive).length;
+    noCycles = leftAlive == 0;
+  }
+  return noCycles;
+}
+
+function scanNeighbours(direction, from, to, connections, backtracks, crossings) {
+  var targetList = [];
+  var j = from.index + direction;
+  while (j != to.index) {
+    var c = connections[j];
+    if (c.spline && backtracks.includes(c.spline)) {
+      targetList.push(c.spline);
+      if (direction == -1) {
+        j = c.spline.start.index - 1;
+      } else {
+        j = c.spline.end.index + 1;
+      }
+    }
+    if (c.spline && crossings.includes(c.spline)) {
+      targetList.push(c.spline);
+      break;
+    }
+    j += direction;
+    if (j < 0) {
+      j = connections.length + j;
+    }
+    if (j >= connections.length) {
+      j = j - connections.length;
+    }
+  }
+  return targetList;
+}
+
+function findBacktrackTrees(connections, splines, side) {
+  var remaining = splines.copy();
+  while (remaining.length > 0) {
+    var s = remaining.pop();
+    var inside = [];
+    var start = s.start;
+    var end = s.end;
+    var i = start.index + 1;
+    while (i != end.index) {
+      var newSpline = connections[i].spline;
+      if (!newSpline) {
+        i = (i + 1) % connections.length;
+      } else {
+        inside.push(newSpline);
+        i = (newSpline.end.index + 1) % connections.length;
+      }
+    }
+    if (side == INNER) {
+      s.inside = inside;
+    } else {
+      s.outside = outside;
+    }
+  }
+  return splines;
 }
