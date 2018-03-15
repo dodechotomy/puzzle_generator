@@ -190,16 +190,54 @@ function clusterConnections(ring, allowBacktrack = true) {
   while (clusters.length > 0) {
     var c = clusters.pop();
     var nodes = pickTwoNodes(c, allowBacktrack);
-    var spline = {
-      start: nodes[0].target,
-      end: nodes[1].target
-      ring: ring
-    };
+    var spline = spline(ring, nodes[0].target, nodes[1].target);
     splines.push(s)
     var newClusters = removeAndRecluster(c, nodes[0], nodes[1]);
     clusters = clusters.concat(newClusters);
   }
+  var cycles = shadowGraph(ring, splines, true);
+  if (cycles) {
+    console.log("Generated with cycles! unable to assign levels.")
+  } else {
+    assignLevels(splines);
+  }
+
   return splines;
+}
+
+function assignLevels(splines) {
+  //assigns levels to the splines in a list in order to avoid overlaps.
+  var unassigned = splines.copy();
+  var trees = []
+  while (unassigned.length > 0) {
+    var tree = assignTree(unassigned, unassigned[0]);
+    trees.push(tree);
+  }
+  //adjust levels to fall between 0 and 1 in each tree
+  for (var i = 0; i < trees.length; i++) {
+    var levels = trees[i].map(s=>s.level);
+    var min = min(levels);
+    var max = max(levels);
+    trees[i].forEach(function(s){
+      s.level = map(s.level,min-1,max+1,0,1);
+    })
+  }
+}
+
+function assignTree(list, root, level = 0) {
+  //finds a tree embedded in the list and recursively assigns levels to its nodes
+  if (!list.includes(root)) {
+    return null;
+  }
+  list.removeItem(root);
+  root.level = level;
+  root.inside.forEach(function(t) {
+    assignTree(list, t, level + 1);
+  });
+  root.outside.forEach(function(t) {
+    assignTree(list, t, level - 1);
+  });
+  return root;
 }
 
 function createInitialCluster(list) {
@@ -224,6 +262,15 @@ function createInitialCluster(list) {
   prevNode.next = cluster[0];
   cluster[0].prev = prevNode;
   return cluster;
+}
+
+function spline(ring, start, end) {
+  return {
+    ring: ring,
+    start: start,
+    end: end,
+    level: 0.5
+  };
 }
 
 function pickTwoNodes(cluster, allowBacktrack) {
@@ -290,7 +337,8 @@ function shadowGraph(ring, splines, checkCycles = true) {
   var innerConnections = ring.innerConnections;
   var outerConnections = ring.outerConnections;
   var crossings = splines.filter(function(s) {
-    return innerConnections.includes(s.start) && outerConnections.includes(s.end);
+    return (innerConnections.includes(s.start) && outerConnections.includes(s.end)) ||
+      (outerConnections.includes(s.start) && innerConnections.includes(s.end));
   });
   var innerBacktracks = splines.filter(function(s) {
     return innerConnections.includes(s.start) && innerConnections.includes(s.end);
