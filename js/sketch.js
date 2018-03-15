@@ -2,7 +2,7 @@ var start = 0;
 var rings = [];
 var pastRings = [];
 var thickness = 50;
-var sectors = 10;
+var sectors = 40;
 var pathCount = 6;
 var ringCount = 4;
 const INNER = 0,
@@ -72,10 +72,8 @@ function createRings() {
 
   for (var i = 0; i < rings.length; i++) {
     var r = rings[i];
-    var splines = clusterConnections(r);
-    for (var j = 0; j < splines.length; j++) {
-      makeSpline(r, splines[j][0], splines[j][1], (j + 1) / (splines.length + 1));
-    }
+    r.splines = clusterConnections(r);
+    // r.blag.glaf = r.glad.gewc;
   }
 }
 
@@ -190,18 +188,18 @@ function clusterConnections(ring, allowBacktrack = true) {
   while (clusters.length > 0) {
     var c = clusters.pop();
     var nodes = pickTwoNodes(c, allowBacktrack);
-    var spline = spline(ring, nodes[0].target, nodes[1].target);
-    splines.push(s)
+    var spline = makeSpline(ring, nodes[0].target, nodes[1].target);
+    splines.push(spline)
     var newClusters = removeAndRecluster(c, nodes[0], nodes[1]);
     clusters = clusters.concat(newClusters);
   }
   var cycles = shadowGraph(ring, splines, true);
   if (cycles) {
     console.log("Generated with cycles! unable to assign levels.")
+    splines.forEach(x => (x.level = random()));
   } else {
     assignLevels(splines);
   }
-
   return splines;
 }
 
@@ -215,16 +213,19 @@ function assignLevels(splines) {
   }
   //adjust levels to fall between 0 and 1 in each tree
   for (var i = 0; i < trees.length; i++) {
-    var levels = trees[i].map(s=>s.level);
+    var levels = trees[i].map(s => s.level);
     var min = min(levels);
     var max = max(levels);
-    trees[i].forEach(function(s){
-      s.level = map(s.level,min-1,max+1,0,1);
+    trees[i].forEach(function(s) {
+      s.level = map(s.level, min - 1, max + 1, 0, 1);
     })
   }
 }
 
-function assignTree(list, root, level = 0) {
+function assignTree(list, root, level = 0, depth = 0) {
+  if (depth > list.length * 10) {
+    throw "Infinite loop?";
+  }
   //finds a tree embedded in the list and recursively assigns levels to its nodes
   if (!list.includes(root)) {
     return null;
@@ -232,10 +233,10 @@ function assignTree(list, root, level = 0) {
   list.removeItem(root);
   root.level = level;
   root.inside.forEach(function(t) {
-    assignTree(list, t, level + 1);
+    assignTree(list, t, level + 1, depth + 1);
   });
   root.outside.forEach(function(t) {
-    assignTree(list, t, level - 1);
+    assignTree(list, t, level - 1, depth + 1);
   });
   return root;
 }
@@ -264,13 +265,21 @@ function createInitialCluster(list) {
   return cluster;
 }
 
-function spline(ring, start, end) {
-  return {
+function makeSpline(ring, start, end) {
+  var spline = {
     ring: ring,
     start: start,
     end: end,
     level: 0.5
   };
+  if(spline.start.index > spline.end.index){
+    var t = spline.start;
+    spline.start = spline.end;
+    spline.end = t;
+  }
+  start.spline = spline;
+  end.spline = spline;
+  return spline;
 }
 
 function pickTwoNodes(cluster, allowBacktrack) {
@@ -346,8 +355,8 @@ function shadowGraph(ring, splines, checkCycles = true) {
   var outerBacktracks = splines.filter(function(s) {
     return outerConnections.includes(s.start) && outerConnections.includes(s.end);
   });
-  findBacktrackTrees(innerConnections, innerBacktracks);
-  findBacktrackTrees(outerConnections, outerBacktracks);
+  findBacktrackTrees(innerConnections, innerBacktracks, INNER);
+  findBacktrackTrees(outerConnections, outerBacktracks, OUTER);
 
   //Find neighbours for crossings
   for (var i = 0; i < crossings.length; i++) {
@@ -396,6 +405,7 @@ function shadowGraph(ring, splines, checkCycles = true) {
 function scanNeighbours(direction, from, to, connections, backtracks, crossings) {
   var targetList = [];
   var j = from.index + direction;
+  j = wrap(j, 0, connections.length);
   while (j != to.index) {
     var c = connections[j];
     if (c.spline && backtracks.includes(c.spline)) {
@@ -411,38 +421,47 @@ function scanNeighbours(direction, from, to, connections, backtracks, crossings)
       break;
     }
     j += direction;
-    if (j < 0) {
-      j = connections.length + j;
-    }
-    if (j >= connections.length) {
-      j = j - connections.length;
-    }
+    j = wrap(j, 0, connections.length);
   }
   return targetList;
 }
 
+function wrap(n, s, e) {
+  if (n < s) {
+    n = e + n;
+  }
+  if (n >= e) {
+    n = n - e;
+  }
+  return n;
+}
+
 function findBacktrackTrees(connections, splines, side) {
-  var remaining = splines.copy();
+  debugger;
+  var remaining = splines.slice();
   while (remaining.length > 0) {
     var s = remaining.pop();
-    var inside = [];
+    var contained = [];
     var start = s.start;
     var end = s.end;
     var i = start.index + 1;
+    i = wrap(i, 0, connections.length);
     while (i != end.index) {
       var newSpline = connections[i].spline;
       if (!newSpline) {
         i = (i + 1) % connections.length;
       } else {
-        inside.push(newSpline);
-        i = (newSpline.end.index + 1) % connections.length;
+        contained.push(newSpline);
+        i = newSpline.end.index + 1;
       }
+      i = wrap(i, 0, connections.length);
     }
     if (side == INNER) {
-      s.inside = inside;
+      s.inside = contained;
     } else {
-      s.outside = outside;
+      s.outside = contained;
     }
   }
+  debugger;
   return splines;
 }
