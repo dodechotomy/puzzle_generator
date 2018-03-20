@@ -2,9 +2,11 @@ var start = 0;
 var rings = [];
 var pastRings = [];
 var thickness = 50;
-var sectors = 40;
+var sectors = 6;
 var pathCount = 6;
-var ringCount = 4;
+var ringCount = 1;
+var avoidCycles = true;
+// var globalSeed = 3551;
 const INNER = 0,
   OUTER = 1;
 
@@ -22,10 +24,11 @@ function draw() {
   for (var i = 0; i < rings.length; i++) {
     drawRing(rings[i]);
   }
+  noLoop();
 }
 
 function keyPressed() {
-  console.log(key);
+  // console.log(key);
   if (key.toLowerCase() == 'n') {
     pastRings.push(rings);
     createRings();
@@ -48,6 +51,13 @@ function windowResized() {
 }
 
 function createRings() {
+  if (typeof globalSeed == 'number') {
+    randomSeed(globalSeed);
+  } else {
+    var seed = floor(millis());
+    console.log("seed: " + seed);
+    randomSeed(seed);
+  }
   rings = [];
   var prevRing = null;
   for (var i = 0; i < ringCount; i++) {
@@ -121,7 +131,7 @@ function makeRing(center, innerRadius, thickness, innerConnections = sectors, ou
 }
 
 function getConnections(ring) {
-  return concat(ring.innerConnections, ring.outerConnections);
+  return concat(ring.innerConnections, ring.outerConnections.slice().reverse());
 }
 
 function drawRing(ring) {
@@ -159,16 +169,16 @@ function drawSpline(spline) {
   var ring = spline.ring;
   var startAngle = spline.start.position.heading();
   var endAngle = spline.end.position.heading();
-  if (startAngle > endAngle) {
-    var t = startAngle;
-    startAngle = endAngle;
-    endAngle = t;
-  }
-  if (abs(startAngle - endAngle) > PI) {
-    var t = startAngle;
-    startAngle = endAngle;
-    endAngle = t;
-  }
+  // if (startAngle > endAngle) {
+  //   var t = startAngle;
+  //   startAngle = endAngle;
+  //   endAngle = t;
+  // }
+  // if (abs(startAngle - endAngle) > PI) {
+  //   var t = startAngle;
+  //   startAngle = endAngle;
+  //   endAngle = t;
+  // }
   var middleRadius = ring.innerRadius + (ring.outerRadius - ring.innerRadius) * spline.level;
   var arc1 = spline.start.position.copy().setMag(middleRadius);
   var arc2 = spline.end.position.copy().setMag(middleRadius);
@@ -185,6 +195,17 @@ function clusterConnections(ring, allowBacktrack = true) {
   var splines = [];
   var initialCluster = createInitialCluster(connections);
   clusters.push(initialCluster);
+  if (avoidCycles) {
+    var c = clusters.pop();
+    var zeroes = c.filter(function(c) {
+      return (c.target.index == 0);
+    });
+    var spline = makeSpline(ring, zeroes[0].target, zeroes[1].target);
+    splines.push(spline)
+    var newClusters = removeAndRecluster(c, zeroes[0], zeroes[1]);
+    clusters = clusters.concat(newClusters);
+  }
+  // debugger;
   while (clusters.length > 0) {
     var c = clusters.pop();
     var nodes = pickTwoNodes(c, allowBacktrack);
@@ -194,9 +215,13 @@ function clusterConnections(ring, allowBacktrack = true) {
     clusters = clusters.concat(newClusters);
   }
   var cycles = shadowGraph(ring, splines, true);
-  if (cycles) {
-    console.log("Generated with cycles! unable to assign levels.")
-    splines.forEach(x => (x.level = random()));
+  if (cycles.length > 0) {
+    console.log("Generated with cycles! unable to properly assign levels.")
+    for (var i = 0; i < splines.length; i++) {
+      splines[i].level = (i + 1) / (splines.length + 1);
+    }
+    console.log(cycles);
+    // splines.forEach(x => (x.level = 0));
   } else {
     assignLevels(splines);
   }
@@ -205,40 +230,69 @@ function clusterConnections(ring, allowBacktrack = true) {
 
 function assignLevels(splines) {
   //assigns levels to the splines in a list in order to avoid overlaps.
-  var unassigned = splines.copy();
+  var unassigned = splines.slice();
   var trees = []
   while (unassigned.length > 0) {
     var tree = assignTree(unassigned, unassigned[0]);
     trees.push(tree);
   }
-  //adjust levels to fall between 0 and 1 in each tree
+  //adjust levels to fall between 0 and 1 in the whole ring
+  var levels = [];
   for (var i = 0; i < trees.length; i++) {
-    var levels = trees[i].map(s => s.level);
-    var min = min(levels);
-    var max = max(levels);
+    for (var j = 0; j < trees[i].length; j++) {
+      levels.push(trees[i][j].level);
+    }
+  }
+  var minimum = min(levels)-1;
+  var maximum = max(levels)+1;
+  for (var i = 0; i < trees.length; i++) {
     trees[i].forEach(function(s) {
-      s.level = map(s.level, min - 1, max + 1, 0, 1);
+      s.originalLevel = s.level;
+      s.level = map(s.level, minimum, maximum, 0, 1);
     })
   }
 }
 
 function assignTree(list, root, level = 0, depth = 0) {
-  if (depth > list.length * 10) {
+  var tree = [root];
+  if (list.length > 0 && depth > list.length * 10) {
     throw "Infinite loop?";
   }
   //finds a tree embedded in the list and recursively assigns levels to its nodes
   if (!list.includes(root)) {
     return null;
   }
-  list.removeItem(root);
+  removeItem(list, root);
+  if (depth == 0) {
+    if (root.start.innerRing && root.start.innerRing === root.end.innerRing) {
+      level++;
+    }
+  }
   root.level = level;
-  root.inside.forEach(function(t) {
-    assignTree(list, t, level + 1, depth + 1);
-  });
-  root.outside.forEach(function(t) {
-    assignTree(list, t, level - 1, depth + 1);
-  });
-  return root;
+  if (list.length > 0 && root.inside) {
+    root.inside.forEach(function(t) {
+      var branch = assignTree(list, t, level - 1, depth + 1);
+      if (branch) {
+        tree = tree.concat(branch);
+      } else {
+        // debugger;
+      }
+    });
+  }
+  if (list.length > 0 && root.outside) {
+    root.outside.forEach(function(t) {
+      var branch = assignTree(list, t, level + 1, depth + 1);
+      if (branch) {
+        tree = tree.concat(branch);
+      } else {
+        // debugger;
+      }
+    });
+  }
+  if (tree.length == 0) {
+    // debugger;
+  }
+  return tree;
 }
 
 function createInitialCluster(list) {
@@ -270,9 +324,9 @@ function makeSpline(ring, start, end) {
     ring: ring,
     start: start,
     end: end,
-    level: 0.5
+    level: 0
   };
-  if(spline.start.index > spline.end.index){
+  if (spline.start.index > spline.end.index) {
     var t = spline.start;
     spline.start = spline.end;
     spline.end = t;
@@ -361,24 +415,48 @@ function shadowGraph(ring, splines, checkCycles = true) {
   //Find neighbours for crossings
   for (var i = 0; i < crossings.length; i++) {
     var s = crossings[i];
+    if (s.start.index == s.end.index) {
+      s.inside = [];
+      s.outside = [];
+      continue;
+    }
     var direction = 1;
     if (innerConnections.includes(s.start)) {
       direction *= -1;
     }
     //Inside neighbours
-    s.inside = scanNeighbours(direction, s.start, s.end, innerConnections, innerBacktracks, crossings);
+    s.inside = scanNeighbours(s, innerConnections, innerBacktracks, crossings);
+    for (var j = 0; j < s.inside.length; j++) {
+      if (!s.inside[j].outside) {
+        s.inside[j].outside = [];
+      }
+      var o = s.inside[j].outside;
+      if (!o.includes(s)) {
+        o.push(s);
+      }
+    }
     //Outside neighbours
     direction *= -1;
-    s.outside = scanNeighbours(direction, s.end, s.start, outerConnections, outerBacktracks, crossings);
+    s.outside = scanNeighbours(s, outerConnections, outerBacktracks, crossings);
+    for (var j = 0; j < s.outside.length; j++) {
+      if (!s.outside[j].inside) {
+        s.outside[j].inside = [];
+      }
+      var o = s.outside[j].inside;
+      if (!o.includes(s)) {
+        o.push(s);
+      }
+    }
   }
   //find cycles
-  var noCycles = true;
+  var leftAlive = [];
   if (checkCycles) {
     crossings.forEach(function(s) {
       s.alive = true;
     });
     var pruned = 1;
     while (pruned > 0) {
+      // debugger;
       crossings.forEach(function(cross) {
         var aliveInside = cross.inside.some(function(s) {
           return s.alive;
@@ -396,28 +474,51 @@ function shadowGraph(ring, splines, checkCycles = true) {
         cross.alive = cross.stillAlive;
       });
     }
-    var leftAlive = crossings.filter(cross => cross.alive).length;
-    noCycles = leftAlive == 0;
+    leftAlive = crossings.filter(cross => cross.alive);
   }
-  return noCycles;
+  return leftAlive;
 }
 
-function scanNeighbours(direction, from, to, connections, backtracks, crossings) {
+function scanNeighbours(main, connections, backtracks, crossings) {
+  var start = main.start;
+  var end = main.end;
   var targetList = [];
-  var j = from.index + direction;
+  if (start.index == end.index) {
+    return targetList;
+  }
+  var direction = start.index <= end.index ? 1 : -1;
+  var j = start.index;
   j = wrap(j, 0, connections.length);
-  while (j != to.index) {
+  var history = [];
+  while (j != end.index) {
+    history.push(j);
+    if (history.length > 100000) {
+      debugger;
+      // throw "While loop taking forever!";
+    }
     var c = connections[j];
+    if (c == main) {
+      continue;
+    }
     if (c.spline && backtracks.includes(c.spline)) {
       targetList.push(c.spline);
       if (direction == -1) {
-        j = c.spline.start.index - 1;
+        j = min(c.spline.start.index, c.spline.end.index);
       } else {
-        j = c.spline.end.index + 1;
+        j = max(c.spline.start.index, c.spline.end.index);
       }
     }
     if (c.spline && crossings.includes(c.spline)) {
+      if (c.spline.start.index == c.spline.end.index) {
+        debugger;
+      }
       targetList.push(c.spline);
+      break;
+    }
+    if (j == end.index) {
+      break;
+    }
+    if ((j < end.index && direction < 0) || (j > end.index && direction > 0)) {
       break;
     }
     j += direction;
@@ -437,8 +538,8 @@ function wrap(n, s, e) {
 }
 
 function findBacktrackTrees(connections, splines, side) {
-  debugger;
   var remaining = splines.slice();
+  // debugger;
   while (remaining.length > 0) {
     var s = remaining.pop();
     var contained = [];
@@ -458,10 +559,13 @@ function findBacktrackTrees(connections, splines, side) {
     }
     if (side == INNER) {
       s.inside = contained;
+      s.outside = [];
     } else {
+      s.inside = [];
       s.outside = contained;
     }
   }
-  debugger;
+  // debugger;
   return splines;
+  //TODO Fix this infinite loop issue
 }
