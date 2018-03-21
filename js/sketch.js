@@ -2,7 +2,7 @@ var start = 0;
 var rings = [];
 var pastRings = [];
 var thickness = 76;
-var sectors = 4; // Math.floor(Math.random() * 7 + 2) * 2;
+var sectors =  Math.floor(Math.random() * 7 + 2) * 2;
 // var pathCount = 32;
 var ringCount = 3;
 var avoidCycles = false;
@@ -74,7 +74,9 @@ function previous() {
     loop();
   }
 }
-
+function toggleAnimate(){
+  animate=!animate;
+}
 function moveRing() {
   var r = rings[movingRing];
   var f = (millis() - lastMoved) / delay;
@@ -129,7 +131,7 @@ function ringSolutions(rings, index, rotation) {
 function checkSolution(rings, rotations) {
   var visited = [];
   var loops = [];
-  var unvisited [];
+  var unvisited = [];
   for (var i = 0; i < rings.length; i++) {
     unvisited.concat(rings[i].splines.slice());
   }
@@ -218,7 +220,7 @@ function createRings() {
       r.validSplines = validateSplines(r);
     }
     // var validSolution = checkSolution(rings);
-    console.log("Solved: " + validSolution)
+    // console.log("Solved: " + validSolution)
   }
 }
 
