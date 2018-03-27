@@ -2,7 +2,7 @@ var start = 0;
 var rings = [];
 var pastRings = [];
 var thickness = 76;
-var sectors =  Math.floor(Math.random() * 7 + 2) * 2;
+var sectors = Math.floor(Math.random() * 7 + 2) * 2;
 // var pathCount = 32;
 var ringCount = 3;
 var avoidCycles = false;
@@ -74,9 +74,11 @@ function previous() {
     loop();
   }
 }
-function toggleAnimate(){
-  animate=!animate;
+
+function toggleAnimate() {
+  animate = !animate;
 }
+
 function moveRing() {
   var r = rings[movingRing];
   var f = (millis() - lastMoved) / delay;
@@ -104,10 +106,10 @@ function findSolutions(rings) {
   for (var i = 0; i < rings.length - 1; i++) {
     rotation.push(0);
   }
-  solutions.push(ringSolutions(rings, 1, rotation));
+  solutions.push(checkSubSolutions(rings, 1, rotation));
 }
 
-function ringSolutions(rings, index, rotation) {
+function checkSubSolutions(rings, index, rotation) {
   if (index >= rings.length) {
     return false;
   }
@@ -118,20 +120,21 @@ function ringSolutions(rings, index, rotation) {
     var currentRotation = rotation.slice();
     currentRotation[index] = i;
 
-    if (index == rings.length - 1 && checkSolution(rings, currentRotation)) {
+    if (index == rings.length - 1 && checkSingleSolution(rings, currentRotation)) {
       solutions.push(currentRotation);
     } else {
-      var newSolutions = ringSolutions(rings, index + 1, currentRotation);
+      var newSolutions = checkSubSolutions(rings, index + 1, currentRotation);
       solutions.concat(newSolutions);
     }
   }
   return solutions;
 }
 
-function checkSolution(rings, rotations) {
+function checkSingleSolution(rings, rotations) {
   var visited = [];
   var loops = [];
   var unvisited = [];
+
   for (var i = 0; i < rings.length; i++) {
     unvisited.concat(rings[i].splines.slice());
   }
@@ -143,6 +146,7 @@ function checkSolution(rings, rotations) {
   var lastConnection, nextConnection, nextSpline;
   var lastSpline = startSpline;
   while (startSpline != nextSpline) {
+    if(nextConnection == lastSpline.start)
     lastConnection = lastSpline.start;
     nextConnection = lastSpline.end;
     nextSpline = otherSpline(ring, nextConnection, lastSpline);
@@ -306,24 +310,43 @@ function connectSpline(s, c) {
   }
 }
 
-function otherSpline(connection, a) {
-  if (connection.splines.length < 2) {
+function getSplineByIndex(ring, side, index) {
+  var connections;
+  if (side == splineType.INSIDE) {
+    connections = ring.innerConnections;
+  } else {
+    connections = ring.outerConnections;
+  }
+  if (index >= connections.length) {
     return null;
   }
-  if (connection.splines.length > 2) {
-    console.log("Too many splines!");
-    debugger;
-    return null;
+  var conn = connections[index];
+  var splines = conn.splines;
+  if(side==splineType.INSIDE){
+    return splines.inner ? splines.inner : null;
+  }else{
+    return splines.outer ? splines.outer : null;
   }
-  var i = connection.splines.indexOf(a);
-
-  if (i < 0) {
-    console.log("Not connected to spline!");
-    debugger;
-    return null;
-  }
-  var b = connection.spline[1 - i]
 }
+
+// function otherSpline(connection, a) {
+//   if (connection.splines.length < 2) {
+//     return null;
+//   }
+//   if (connection.splines.length > 2) {
+//     console.log("Too many splines!");
+//     debugger;
+//     return null;
+//   }
+//   var i = connection.splines.indexOf(a);
+//
+//   if (i < 0) {
+//     console.log("Not connected to spline!");
+//     debugger;
+//     return null;
+//   }
+//   var b = connection.spline[1 - i]
+// }
 
 function drawSpline(spline) {
   var ring = spline.ring;
