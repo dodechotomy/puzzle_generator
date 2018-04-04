@@ -1,27 +1,27 @@
-var start = 0;
-var rings = [];
-var pastRings = [];
-var thickness = 76;
-var sectors = Math.floor(Math.random() * 7 + 2) * 2;
-// var pathCount = 32;
-var ringCount = 3;
-var avoidCycles = false;
-var speed = 0.01;
-var delay = 250;
-var lastMoved = 0;
-var moving = true;
-var movingRing = 0;
-var animate = false;
-var lastPos = 0;
-var target = Math.PI * 2 / sectors;
-// var globalSeed = 8779;
-var trees = [];
-const splineType = {
+let start = 0;
+let rings = [];
+let pastRings = [];
+let thickness = 76;
+let sectors = Math.floor(Math.random() * 7 + 2) * 2;
+// let pathCount = 32;
+let ringCount = 3;
+let avoidCycles = false;
+let speed = 0.01;
+let delay = 250;
+let lastMoved = 0;
+let moving = true;
+let movingRing = 0;
+let animate = false;
+let lastPos = 0;
+let target = Math.PI * 2 / sectors;
+// let globalSeed = 20265;
+let trees = [];
+const sideType = {
   INSIDE: -1,
   OUTSIDE: 1,
   CROSSING: 0
 }
-var splineRequirements = {
+const splineRequirements = {
   minSplines: 0,
   notAllCrossings: true,
   someCrossings: true
@@ -49,7 +49,7 @@ function draw() {
       }
     }
   }
-  for (var i = 0; i < rings.length; i++) {
+  for (let i = 0; i < rings.length; i++) {
     rings[i].show();
   }
   // noLoop();
@@ -80,9 +80,8 @@ function toggleAnimate() {
 }
 
 function moveRing() {
-  var r = rings[movingRing];
-  var f = (millis() - lastMoved) / delay;
-  var currentRot = map(f, 0, 1, lastPos, lastPos + target);
+  let f = (millis() - lastMoved) / delay;
+  let currentRot = map(f, 0, 1, lastPos, lastPos + target);
   r.rotation = currentRot;
   if (f > 1) {
     r.rotation = lastPos + target;
@@ -90,114 +89,35 @@ function moveRing() {
     moving = false;
     movingRing++;
     movingRing = movingRing % rings.length;
-    var d = TWO_PI / sectors;
+    let r = rings[movingRing];
+    let d = TWO_PI / sectors;
     d *= (random() < 0.5) ? 1 : -1;
     d *= (random() < 0.25) ? 2 : 1;
     d *= (random() < 0.125) ? 3 : 1;
-    rings[movingRing].rotation = rings[movingRing].rotation % TWO_PI;
+    r.rotation = r.rotation % TWO_PI;
     target = d;
-    lastPos = rings[movingRing].rotation;
+    lastPos = r.rotation;
   }
 }
 
-function findSolutions(rings) {
-  var solutions = [];
-  var rotation = [];
-  for (var i = 0; i < rings.length - 1; i++) {
-    rotation.push(0);
-  }
-  solutions.push(checkSubSolutions(rings, 1, rotation));
-}
-
-function checkSubSolutions(rings, index, rotation) {
-  if (index >= rings.length) {
-    return false;
-  }
-  var ring = rings[index];
-  var sockets = ring.outerSockets || ring.innerSockets || [];
-  var solutions = [];
-  for (var i = 0; i < sockets.length; i++) {
-    var currentRotation = rotation.slice();
-    currentRotation[index] = i;
-
-    if (index == rings.length - 1 && checkSingleSolution(rings, currentRotation)) {
-      solutions.push(currentRotation);
-    } else {
-      var newSolutions = checkSubSolutions(rings, index + 1, currentRotation);
-      solutions.concat(newSolutions);
-    }
-  }
-  return solutions;
-}
-
-function checkSingleSolution(rings, rotations) {
-  var visited = [];
-  var loops = [];
-  var nonLoops = [];
-  var unvisited = [];
-
-  for (var i = 0; i < rings.length; i++) {
-    unvisited.concat(rings[i].splines.slice());
-  }
-  if (unvisited.length < 1) {
-    return false;
-  }
-  var loop = [];
-  var startSpline = unvisited.pop();
-  extractLoop(unvisited, startSpline);
-}
-
-function extractLoop(splines, startSpline) {
-  var unvisited = splines.copy();
-  var loop = [];
-  var isLoop = true;
-
-  var currentSpline = startSpline;
-  var currentSocket = currentSpline.start;
-  var nextSocket, nextSpline;
-
-  while (startSpline !== nextSpline && unvisited.length > 0) {
-    nextSocket = currentSpline.otherSocket(currentSocket);
-    nextSpline = nextSocket.otherSpline(currentSpline);
-    if (nextSpline) {
-      if (nextSpline === startSpline) {
-        isLoop = true;
-        break;
-      } else {
-        loop.push(nextSpline);
-        currentSpline = nextSpline;
-        currentSocket = nextSocket;
-      }
-    } else {
-      isLoop = false;
-      break;
-    }
-  }
-  return {
-    isLoop: isLoop,
-    loop: loop
-  };
-}
-
-function getSplineByIndex(ring, side, index) {
-  var sockets;
-  if (side == splineType.INSIDE) {
-    sockets = ring.innerSockets;
-  } else {
-    sockets = ring.outerSockets;
-  }
-  if (index >= sockets.length) {
-    return null;
-  }
-  var sock = sockets[index];
-  var splines = sock.splines;
-  if (side == splineType.INSIDE) {
-    return splines.inner ? splines.inner : null;
-  } else {
-    return splines.outer ? splines.outer : null;
-  }
-}
-
+// function getSplineByIndex(ring, side, index) {
+//   let sockets;
+//   if (side == sideType.INSIDE) {
+//     sockets = ring.innerSockets;
+//   } else {
+//     sockets = ring.outerSockets;
+//   }
+//   if (index >= sockets.length) {
+//     return null;
+//   }
+//   let sock = sockets[index];
+//   let splines = sock.splines;
+//   if (side == sideType.INSIDE) {
+//     return splines.inner ? splines.inner : null;
+//   } else {
+//     return splines.outer ? splines.outer : null;
+//   }
+// }
 
 function keyPressed() {
   // console.log(key);
@@ -220,31 +140,31 @@ function createRings() {
   if (typeof globalSeed == 'number') {
     randomSeed(globalSeed);
   } else {
-    var seed = floor(millis());
+    let seed = floor(millis());
     console.log("seed: " + seed);
     randomSeed(seed);
   }
   rings = [];
-  var prevRing = null;
-  for (var i = 0; i < ringCount; i++) {
-    var c = createVector(width / 2, height / 2);
-    var innerRadius = thickness * (i + 1);
-    var innerSockets = sectors;
-    if (r) {
-      innerSockets = r.outerSockets;
-    }
-    var outerSockets = sectors;
+  let prevRing = null;
+  for (let i = 0; i < ringCount; i++) {
+    let center = createVector(width / 2, height / 2);
+    let innerRadius = thickness * (i + 1);
+    let innerSockets = sectors;
+    // if (prevRing) {
+    //   innerSockets = prevRing.outerSockets;
+    // }
+    let outerSockets = sectors;
     if (i == ringCount - 1) {
       outerSockets = 0;
     }
     if (i == 0) {
       innerSockets = 0;
     }
-    var r = new Ring(i, c, innerRadius, thickness, innerSockets, outerSockets);
+    let r = new Ring(i, center, innerRadius, thickness, innerSockets, outerSockets);
     r.innerRing = prevRing;
     if (prevRing) {
       prevRing.outerRing = r;
-      for (var j = 0; j < prevRing.outerSockets.length; j++) {
+      for (let j = 0; j < prevRing.outerSockets.length; j++) {
         prevRing.outerSockets[j].outerRing = r;
       }
     }
@@ -252,10 +172,10 @@ function createRings() {
     prevRing = r;
   }
 
-  for (var i = 0; i < rings.length; i++) {
-    var r = rings[i];
+  for (let i = 0; i < rings.length; i++) {
+    let r = rings[i];
     r.validSplines = false;
-    var loopCount = 0;
+    let loopCount = 0;
     while (r.validSplines == false) {
       loopCount++;
       if (loopCount >= 1000) {
@@ -265,7 +185,7 @@ function createRings() {
       r.splines = clusterSockets(r);
       r.validSplines = validateSplines(r);
     }
-    // var validSolution = checkSolution(rings);
+    // let validSolution = checkSolution(rings);
     // console.log("Solved: " + validSolution)
   }
 }

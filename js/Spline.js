@@ -5,15 +5,15 @@ class Spline {
     this.start = start;
     this.end = end;
     if (ring.innerSockets.includes(this.start) && ring.innerSockets.includes(this.end)) {
-      this.splineType = splineType.INSIDE;
+      this.sideType = sideType.INSIDE;
     } else
     if (ring.outerSockets.includes(this.start) && ring.outerSockets.includes(this.end)) {
-      this.splineType = splineType.OUTSIDE;
+      this.sideType = sideType.OUTSIDE;
     } else {
-      this.splineType = splineType.CROSSING;
+      this.sideType = sideType.CROSSING;
     }
     if (this.start.index > this.end.index) {
-      var t = this.start;
+      let t = this.start;
       this.start = this.end;
       this.end = t;
     }
@@ -21,39 +21,22 @@ class Spline {
     this.end.connect(this);
   }
   show() {
-    var startAngle = this.start.position.heading();
-    var endAngle = this.end.position.heading();
-    var middleRadius = this.ring.innerRadius + (this.ring.outerRadius - this.ring.innerRadius) * this.level;
-    var arc1 = this.start.position.copy().setMag(middleRadius);
-    var arc2 = this.end.position.copy().setMag(middleRadius);
+    let startAngle = this.start.position.heading();
+    let endAngle = this.end.position.heading();
+    // if(startAngle >)
+    let middleRadius = this.ring.innerRadius + (this.ring.outerRadius - this.ring.innerRadius) * this.level;
+    let arc1 = this.start.position.copy().setMag(middleRadius);
+    let arc2 = this.end.position.copy().setMag(middleRadius);
     strokeWeight(2);
     colorMode(HSB);
-    // var hue = spline.level * 360 * sectors * 1.5;
+    // let hue = spline.level * 360 * sectors * 1.5;
     // hue = hue % 360;
-    var c = color(this.hue, 100, 75)
+    let c = color(this.hue, 100, 75)
     // colorMode(RGB);
     stroke(c);
     line(this.start.position.x, this.start.position.y, arc1.x, arc1.y);
     arc(0, 0, middleRadius * 2, middleRadius * 2, startAngle, endAngle);
     line(arc2.x, arc2.y, this.end.position.x, this.end.position.y);
-  }
-  connect(socket) {
-    if (socket.innerRing == this.ring) {
-      if (socket.splines.hasOwnProperty('outer')) {
-        console.log('Overloaded socket!');
-        console.log(socket);
-        console.log(this);
-      }
-      socket.splines.outer = this;
-    }
-    if (socket.outerRing == s.ring) {
-      if (socket.splines.hasOwnProperty('inner')) {
-        console.log('Overloaded socket!');
-        console.log(socket);
-        console.log(this);
-      }
-      socket.splines.inner = this;
-    }
   }
   otherSocket(socket) {
     if (spline === this.start) {
