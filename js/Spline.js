@@ -1,5 +1,5 @@
 
-class Spline(ring, start, end) {
+class Spline {
   constructor(ring, start, end) {
     this.ring = ring;
     this.start = start;
@@ -7,7 +7,7 @@ class Spline(ring, start, end) {
     if (ring.innerSockets.includes(this.start) && ring.innerSockets.includes(this.end)) {
       this.splineType = splineType.INSIDE;
     } else
-    if (ring.outerSockets.includes(this.start) && ring.outeSockets.includes(this.end)) {
+    if (ring.outerSockets.includes(this.start) && ring.outerSockets.includes(this.end)) {
       this.splineType = splineType.OUTSIDE;
     } else {
       this.splineType = splineType.CROSSING;
@@ -17,8 +17,8 @@ class Spline(ring, start, end) {
       this.start = this.end;
       this.end = t;
     }
-    this.start.spline = spline;
-    this.end.spline = spline;
+    this.start.connect(this);
+    this.end.connect(this);
   }
   show() {
     var startAngle = this.start.position.heading();
@@ -33,9 +33,9 @@ class Spline(ring, start, end) {
     var c = color(this.hue, 100, 75)
     // colorMode(RGB);
     stroke(c);
-    line(spline.start.position.x, spline.start.position.y, arc1.x, arc1.y);
+    line(this.start.position.x, this.start.position.y, arc1.x, arc1.y);
     arc(0, 0, middleRadius * 2, middleRadius * 2, startAngle, endAngle);
-    line(arc2.x, arc2.y, spline.end.position.x, spline.end.position.y);
+    line(arc2.x, arc2.y, this.end.position.x, this.end.position.y);
   }
   connect(socket) {
     if (socket.innerRing == this.ring) {
@@ -54,5 +54,14 @@ class Spline(ring, start, end) {
       }
       socket.splines.inner = this;
     }
+  }
+  otherSocket(socket) {
+    if (spline === this.start) {
+      return this.end;
+    }
+    if (spline === this.end) {
+      return this.start;
+    }
+    return null;
   }
 }

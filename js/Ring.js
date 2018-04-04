@@ -11,9 +11,8 @@ class Ring {
     this.outerRing = null;
     this.rotation = 0;
     this.rotationIndex = 0;
-
     if (typeof innerSockets === 'number') {
-      this.innerSockets = createSockets();
+      this.innerSockets = this.createSockets(innerSockets, this.innerRadius);
     } else if (Array.isArray(innerSockets)) {
       this.innerSockets = innerSockets;
     } else {
@@ -21,7 +20,7 @@ class Ring {
     }
 
     if (typeof outerSockets === 'number') {
-      this.outerSockets = createSockets();
+      this.outerSockets = this.createSockets(outerSockets, this.outerRadius);
     } else if (Array.isArray(outerSockets)) {
       this.outerSockets = outerSockets;
     } else {
@@ -29,10 +28,10 @@ class Ring {
     }
   }
 
-  createSockets(count) {
+  createSockets(count, radius) {
     let sockets = [];
     for (var i = 0; i < count; i++) {
-      var position = p5.Vector.fromAngle(TWO_PI * i / count).mult(ring.innerRadius)
+      var position = p5.Vector.fromAngle(TWO_PI * i / count).mult(radius)
       let sock = new Socket(i, position, {}, null, this);
       sockets.push(sock);
     }
@@ -48,11 +47,11 @@ class Ring {
     ellipse(0, 0, this.innerRadius * 2, this.innerRadius * 2);
     ellipse(0, 0, this.outerRadius * 2, this.outerRadius * 2);
     for (var i = 0; i < this.splines.length; i++) {
-      drawSpline(this.splines[i]);
+      this.splines[i].show();
     }
     pop();
   }
   get sockets() {
-    return concat(this.innerConnections, this.outerConnections.slice().reverse());
+    return concat(this.innerSockets, this.outerSockets.slice().reverse());
   }
 }

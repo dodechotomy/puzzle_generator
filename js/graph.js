@@ -1,5 +1,3 @@
-
-
 function pickTwoNodes(cluster, allowBacktrack) {
   var node1 = cluster[floor(random(cluster.length))];
   var filteredCluster = cluster.filter(function(n) {
@@ -61,20 +59,20 @@ function extractClusters(oldCluster) {
 }
 
 function shadowGraph(ring, splines, checkCycles = true) {
-  var innerConnections = ring.innerConnections;
-  var outerConnections = ring.outerConnections;
+  var innerSockets = ring.innerSockets;
+  var outerSockets = ring.outerSockets;
   var crossings = splines.filter(function(s) {
-    return (innerConnections.includes(s.start) && outerConnections.includes(s.end)) ||
-      (outerConnections.includes(s.start) && innerConnections.includes(s.end));
+    return (innerSockets.includes(s.start) && outerSockets.includes(s.end)) ||
+      (outerSockets.includes(s.start) && innerSockets.includes(s.end));
   });
   var innerBacktracks = splines.filter(function(s) {
-    return innerConnections.includes(s.start) && innerConnections.includes(s.end);
+    return innerSockets.includes(s.start) && innerSockets.includes(s.end);
   });
   var outerBacktracks = splines.filter(function(s) {
-    return outerConnections.includes(s.start) && outerConnections.includes(s.end);
+    return outerSockets.includes(s.start) && outerSockets.includes(s.end);
   });
-  findBacktrackTrees(innerConnections, innerBacktracks, splineType.INSIDE);
-  findBacktrackTrees(outerConnections, outerBacktracks, splineType.OUTSIDE);
+  findBacktrackTrees(ring, innerSockets, innerBacktracks, splineType.INSIDE);
+  findBacktrackTrees(ring, outerSockets, outerBacktracks, splineType.OUTSIDE);
 
   //Find neighbours for crossings
   for (var i = 0; i < crossings.length; i++) {
@@ -85,17 +83,17 @@ function shadowGraph(ring, splines, checkCycles = true) {
       continue;
     }
     var direction = 1;
-    if (innerConnections.includes(s.start)) {
+    if (innerSockets.includes(s.start)) {
       direction *= -1;
     }
     //Inside neighbours
-    var insideNeighbours = scanNeighbours(s, innerConnections, innerBacktracks, crossings);
+    var insideNeighbours = scanNeighbours(s, innerSockets, innerBacktracks, crossings);
     insideNeighbours.forEach(function(n) {
       addInside(s, n);
     });
     //Outside neighbours
     // direction *= -1;
-    var outsideNeighbours = scanNeighbours(s, outerConnections, outerBacktracks, crossings);
+    var outsideNeighbours = scanNeighbours(s, outerSockets, outerBacktracks, crossings);
     outsideNeighbours.forEach(function(n) {
       addInside(n, s);
     });
@@ -109,12 +107,17 @@ function shadowGraph(ring, splines, checkCycles = true) {
     var pruned = 1;
     while (pruned > 0) {
       crossings.forEach(function(cross) {
-        var aliveInside = cross.inside.some(function(s) {
-          return s.alive;
-        })
-        var aliveOutside = cross.outside.some(function(s) {
-          return s.alive;
-        })
+        let aliveInside = false;
+        let aliveOutside = false;
+        if (cross.inside) { aliveInside = cross.inside.some(function(s) {
+            return s.alive;
+          })
+        }
+        if (cross.outside) {
+          aliveOutside = cross.outside.some(function(s) {
+            return s.alive;
+          })
+        }
         cross.stillAlive = aliveInside && aliveOutside;
       });
       pruned = 0;
@@ -130,7 +133,7 @@ function shadowGraph(ring, splines, checkCycles = true) {
   return leftAlive;
 }
 
-function scanNeighbours(main, connections, backtracks, crossings) {
+function scanNeighbours(main, sockets, backtracks, crossings) {
   debugger;
   var start = main.start;
   var end = main.end;
@@ -138,13 +141,13 @@ function scanNeighbours(main, connections, backtracks, crossings) {
   if (start.index == end.index) {
     return targetList;
   }
-  if (end.index < 0 || end.index > connections.length) {
+  if (end.index < 0 || end.index > sockets.length) {
     return targetList;
   }
   var direction = start.index <= end.index ? 1 : -1;
-  for (var i = start.index; i != end.index; i = wrap(i + direction, 0, connections.length)) {
+  for (var i = start.index; i != end.index; i = wrap(i + direction, 0, sockets.length)) {
     // history.push(i);
-    var c = connections[i];
+    var c = sockets[i];
     if (c == main) {
       continue;
     }
@@ -158,7 +161,7 @@ function scanNeighbours(main, connections, backtracks, crossings) {
   return targetList;
 }
 
-function findBacktrackTrees(connections, splines, side) {
+function findBacktrackTrees(ring, sockets, splines, side) {
   var remaining = splines.slice();
   while (remaining.length > 0) {
     var s = remaining.pop();
@@ -166,16 +169,16 @@ function findBacktrackTrees(connections, splines, side) {
     var start = s.start;
     var end = s.end;
     var i = start.index + 1;
-    i = wrap(i, 0, connections.length);
+    i = wrap(i, 0, sockets.length);
     while (i != end.index) {
-      var newSpline = connections[i].spline;
+      var newSpline = sockets[i].splineByRing(ring);
       if (!newSpline) {
-        i = (i + 1) % connections.length;
+        i = (i + 1) % sockets.length;
       } else {
         contained.push(newSpline);
         i = newSpline.end.index + 1;
       }
-      i = wrap(i, 0, connections.length);
+      i = wrap(i, 0, sockets.length);
     }
     for (var i = 0; i < contained.length; i++) {
       if (side == splineType.INSIDE) {
@@ -326,11 +329,11 @@ function createInitialCluster(list) {
 }
 
 
-function clusterConnections(ring, allowBacktrack = true) {
-  var connections = getConnections(ring);
+function clusterSockets(ring, allowBacktrack = true) {
+  var sockets = ring.sockets;
   var clusters = [];
   var splines = [];
-  var initialCluster = createInitialCluster(connections);
+  var initialCluster = createInitialCluster(sockets);
   clusters.push(initialCluster);
   if (avoidCycles) {
     var c = clusters.pop();

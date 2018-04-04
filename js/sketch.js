@@ -50,7 +50,7 @@ function draw() {
     }
   }
   for (var i = 0; i < rings.length; i++) {
-    drawRing(rings[i]);
+    rings[i].show();
   }
   // noLoop();
 }
@@ -114,9 +114,9 @@ function checkSubSolutions(rings, index, rotation) {
     return false;
   }
   var ring = rings[index];
-  var connections = ring.outerConnections || ring.innerConnections || [];
+  var sockets = ring.outerSockets || ring.innerSockets || [];
   var solutions = [];
-  for (var i = 0; i < connections.length; i++) {
+  for (var i = 0; i < sockets.length; i++) {
     var currentRotation = rotation.slice();
     currentRotation[index] = i;
 
@@ -146,7 +146,6 @@ function checkSingleSolution(rings, rotations) {
   var startSpline = unvisited.pop();
   extractLoop(unvisited, startSpline);
 }
-}
 
 function extractLoop(splines, startSpline) {
   var unvisited = splines.copy();
@@ -154,12 +153,12 @@ function extractLoop(splines, startSpline) {
   var isLoop = true;
 
   var currentSpline = startSpline;
-  var currentConnection = currentSpline.start;
-  var nextConnection, nextSpline;
+  var currentSocket = currentSpline.start;
+  var nextSocket, nextSpline;
 
   while (startSpline !== nextSpline && unvisited.length > 0) {
-    nextConnection = currentSpline.otherConnection(currentConnection);
-    nextSpline = nextConnection.otherSpline(currentSpline);
+    nextSocket = currentSpline.otherSocket(currentSocket);
+    nextSpline = nextSocket.otherSpline(currentSpline);
     if (nextSpline) {
       if (nextSpline === startSpline) {
         isLoop = true;
@@ -167,7 +166,7 @@ function extractLoop(splines, startSpline) {
       } else {
         loop.push(nextSpline);
         currentSpline = nextSpline;
-        currentConnection = nextConnection;
+        currentSocket = nextSocket;
       }
     } else {
       isLoop = false;
@@ -181,17 +180,17 @@ function extractLoop(splines, startSpline) {
 }
 
 function getSplineByIndex(ring, side, index) {
-  var connections;
+  var sockets;
   if (side == splineType.INSIDE) {
-    connections = ring.innerConnections;
+    sockets = ring.innerSockets;
   } else {
-    connections = ring.outerConnections;
+    sockets = ring.outerSockets;
   }
-  if (index >= connections.length) {
+  if (index >= sockets.length) {
     return null;
   }
-  var conn = connections[index];
-  var splines = conn.splines;
+  var sock = sockets[index];
+  var splines = sock.splines;
   if (side == splineType.INSIDE) {
     return splines.inner ? splines.inner : null;
   } else {
@@ -230,23 +229,23 @@ function createRings() {
   for (var i = 0; i < ringCount; i++) {
     var c = createVector(width / 2, height / 2);
     var innerRadius = thickness * (i + 1);
-    var innerConnections = sectors;
+    var innerSockets = sectors;
     if (r) {
-      innerConnections = r.outerConnections;
+      innerSockets = r.outerSockets;
     }
-    var outerConnections = sectors;
+    var outerSockets = sectors;
     if (i == ringCount - 1) {
-      outerConnections = 0;
+      outerSockets = 0;
     }
     if (i == 0) {
-      innerConnections = 0;
+      innerSockets = 0;
     }
-    var r = makeRing(i, c, innerRadius, thickness, innerConnections, outerConnections);
+    var r = new Ring(i, c, innerRadius, thickness, innerSockets, outerSockets);
     r.innerRing = prevRing;
     if (prevRing) {
       prevRing.outerRing = r;
-      for (var j = 0; j < prevRing.outerConnections.length; j++) {
-        prevRing.outerConnections[j].outerRing = r;
+      for (var j = 0; j < prevRing.outerSockets.length; j++) {
+        prevRing.outerSockets[j].outerRing = r;
       }
     }
     rings.push(r);
@@ -263,7 +262,7 @@ function createRings() {
         debugger;
         throw "Infinite loop";
       }
-      r.splines = clusterConnections(r);
+      r.splines = clusterSockets(r);
       r.validSplines = validateSplines(r);
     }
     // var validSolution = checkSolution(rings);
