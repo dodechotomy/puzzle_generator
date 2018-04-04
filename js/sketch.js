@@ -2,7 +2,7 @@ let start = 0;
 let rings = [];
 let pastRings = [];
 let thickness = 76;
-let sectors = Math.floor(Math.random() * 7 + 2) * 2;
+let sectors = 16;//Math.floor(Math.random() * 7 + 2) * 2;
 // let pathCount = 32;
 let ringCount = 3;
 let avoidCycles = false;
@@ -13,13 +13,19 @@ let moving = true;
 let movingRing = 0;
 let animate = false;
 let lastPos = 0;
+let validSolutions;
+let currentSolution = 0;
+let attempt = 0;
+let debug = false;
 let target = Math.PI * 2 / sectors;
-// let globalSeed = 20265;
+// let globalSeed = 123;
 let trees = [];
 const sideType = {
-  INSIDE: -1,
-  OUTSIDE: 1,
-  CROSSING: 0
+  INSIDE: "inside",
+  OUTSIDE: "outside",
+  INNER: "inside",
+  OUTER: "outside",
+  CROSSING: "cross"
 }
 const splineRequirements = {
   minSplines: 0,
@@ -32,6 +38,7 @@ function setup() {
   createCanvas(window.innerWidth, window.innerHeight, SVG); // Create SVG Canvas
   start = millis();
   createRings();
+  checkSingleSolution(rings);
 }
 
 function draw() {
@@ -53,6 +60,32 @@ function draw() {
     rings[i].show();
   }
   // noLoop();
+}
+
+function solve(i = 0) {
+  findSolutions(rings);
+  nextSolution();
+}
+
+function nextSolution() {
+  if (validSolutions.length < 1) {
+    console.log("no solutions");
+    return;
+  }
+  setRotations(validSolutions[currentSolution]);
+  currentSolution++;
+  currentSolution = currentSolution % validSolutions.length;
+  checkSingleSolution(rings);
+}
+
+function setRotations(rots) {
+  if (rots.length !== rings.length) {
+    debugger;
+    return;
+  }
+  for (var i = 0; i < rots.length; i++) {
+    rings[i].rotationIndex = rots[i];
+  }
 }
 
 function saveAll() {
@@ -122,7 +155,7 @@ function moveRing() {
 function keyPressed() {
   // console.log(key);
   if (key.toLowerCase() == 'n') {
-    next();
+    nextSolution();
   }
   if (key.toLowerCase() == 'p') {
     previous();
@@ -185,9 +218,25 @@ function createRings() {
       r.splines = clusterSockets(r);
       r.validSplines = validateSplines(r);
     }
-    // let validSolution = checkSolution(rings);
-    // console.log("Solved: " + validSolution)
   }
+  // let validSolutions = checkSubSolutions(rings, 0);
+  findSolutions(rings);
+  currentSolution = 0;
+  if (validSolutions.length == 1) {
+    // console.log("Solved!")
+    // console.log(validSolutions);
+    nextSolution();
+  } else {
+    // console.log("Unsolved")
+    // console.log(validSolutions);
+    if(attempt > 1000){
+      console.log( "Couldn't generate solvable puzzle");
+    }else{
+      attempt++;
+    createRings();
+    }
+  }
+  attempt = 0;
 }
 
 function wrap(n, s, e) {

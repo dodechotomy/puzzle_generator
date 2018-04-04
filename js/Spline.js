@@ -1,4 +1,3 @@
-
 class Spline {
   constructor(ring, start, end) {
     this.ring = ring;
@@ -17,32 +16,36 @@ class Spline {
       this.start = this.end;
       this.end = t;
     }
-    this.start.connect(this);
-    this.end.connect(this);
+    this.start.connect(this, 'start');
+    this.end.connect(this, 'end');
   }
   show() {
-    let startAngle = this.start.position.heading();
-    let endAngle = this.end.position.heading();
-    // if(startAngle >)
-    let middleRadius = this.ring.innerRadius + (this.ring.outerRadius - this.ring.innerRadius) * this.level;
-    let arc1 = this.start.position.copy().setMag(middleRadius);
-    let arc2 = this.end.position.copy().setMag(middleRadius);
     strokeWeight(2);
+    noFill();
     colorMode(HSB);
     // let hue = spline.level * 360 * sectors * 1.5;
     // hue = hue % 360;
-    let c = color(this.hue, 100, 75)
+    let c = color(this.hue, 100, 75, 50)
     // colorMode(RGB);
     stroke(c);
+    this.drawLines();
+  }
+  drawLines() {
+    let startAngle = this.start.position.heading();
+    let endAngle = this.end.position.heading();
+    let middleRadius = this.ring.innerRadius + (this.ring.outerRadius - this.ring.innerRadius) * this.level;
+    let arc1 = this.start.position.copy().setMag(middleRadius);
+    let arc2 = this.end.position.copy().setMag(middleRadius);
     line(this.start.position.x, this.start.position.y, arc1.x, arc1.y);
     arc(0, 0, middleRadius * 2, middleRadius * 2, startAngle, endAngle);
     line(arc2.x, arc2.y, this.end.position.x, this.end.position.y);
   }
+
   otherSocket(socket) {
-    if (spline === this.start) {
+    if (socket === this.start) {
       return this.end;
     }
-    if (spline === this.end) {
+    if (socket === this.end) {
       return this.start;
     }
     return null;

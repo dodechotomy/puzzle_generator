@@ -11,7 +11,16 @@ function pickTwoNodes(cluster, allowBacktrack) {
       return !(matchInner || matchOuter);
     });
   }
-  let node2 = filteredCluster[floor(random(filteredCluster.length))];
+  let node2;
+  let diff = 0;
+  for(let i =0; i < 5; i++){
+    let a = filteredCluster[floor(random(filteredCluster.length))];
+    let d = abs(a.index - node1.index);
+    if(!node2 || d < diff){
+      diff = d;
+      node2 = a;
+    }
+  }
   return [node1, node2];
 }
 
@@ -227,7 +236,8 @@ function assignLevels(splines) {
   splines.forEach(function(s) {
     s.originalLevel = s.level;
     s.level = map(s.level, minimum, maximum, 0, 1);
-    s.hue = s.level * 360;
+    s.hue =  180;
+    // s.hue = s.level * 360;
   });
 }
 
