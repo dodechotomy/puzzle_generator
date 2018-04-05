@@ -1,10 +1,10 @@
+'use strict';
 let start = 0;
 let rings = [];
 let pastRings = [];
 let thickness = 76;
-let sectors = 16;//Math.floor(Math.random() * 7 + 2) * 2;
-// let pathCount = 32;
-let ringCount = 3;
+let sectors = 16;
+let ringCount = 4;
 let avoidCycles = false;
 let speed = 0.01;
 let delay = 250;
@@ -16,8 +16,12 @@ let lastPos = 0;
 let validSolutions;
 let currentSolution = 0;
 let attempt = 0;
+let totalAttempts = 0;
+let timeLimit = 1000 / 30;
+let timePassed = 0;
 let debug = false;
 let target = Math.PI * 2 / sectors;
+let generating = false;
 // let globalSeed = 123;
 let trees = [];
 const sideType = {
@@ -32,16 +36,34 @@ const splineRequirements = {
   notAllCrossings: true,
   someCrossings: true
 }
+let settings = {
+  QUICKMODE: true
+}
 
 
 function setup() {
   createCanvas(window.innerWidth, window.innerHeight, SVG); // Create SVG Canvas
-  start = millis();
-  createRings();
-  checkSingleSolution(rings);
+  // start = millis();
+  // checkSingleSolution(rings);
 }
 
 function draw() {
+  document.getElementById("attemptCount").innerHTML = "Attempts: " + totalAttempts;
+  if (validSolutions) {
+    document.getElementById("solutionCount").innerHTML = "with " + validSolutions.length + " solutions";
+  }
+  if (generating) {
+    timePassed = millis() - start;
+    document.getElementById("totalTime").innerHTML = "in " + floor(timePassed / 1000) + " seconds";
+    createRings();
+  }
+  if (generating) {
+    // return;
+  } else {
+    document.getElementById("generatingOutput").innerHTML = "done";
+  }
+  document.getElementById("timePerAttempt").innerHTML = round(totalAttempts / (timePassed / 1000)) + " attempts per second";
+
   clear();
   strokeWeight(2);
   stroke('#ED225D');
@@ -93,10 +115,13 @@ function saveAll() {
 }
 
 function next() {
-  pastRings.push(rings);
-  createRings();
-  clear();
+  document.getElementById("generatingOutput").innerHTML = "generating";
+  // pastRings.push(rings);
+  totalAttempts = 0;
+  attempt = 0;
   start = millis();
+  generating = true;
+  clear();
 }
 
 function previous() {
@@ -112,50 +137,11 @@ function toggleAnimate() {
   animate = !animate;
 }
 
-function moveRing() {
-  let f = (millis() - lastMoved) / delay;
-  let currentRot = map(f, 0, 1, lastPos, lastPos + target);
-  r.rotation = currentRot;
-  if (f > 1) {
-    r.rotation = lastPos + target;
-    lastMoved = millis();
-    moving = false;
-    movingRing++;
-    movingRing = movingRing % rings.length;
-    let r = rings[movingRing];
-    let d = TWO_PI / sectors;
-    d *= (random() < 0.5) ? 1 : -1;
-    d *= (random() < 0.25) ? 2 : 1;
-    d *= (random() < 0.125) ? 3 : 1;
-    r.rotation = r.rotation % TWO_PI;
-    target = d;
-    lastPos = r.rotation;
-  }
-}
-
-// function getSplineByIndex(ring, side, index) {
-//   let sockets;
-//   if (side == sideType.INSIDE) {
-//     sockets = ring.innerSockets;
-//   } else {
-//     sockets = ring.outerSockets;
-//   }
-//   if (index >= sockets.length) {
-//     return null;
-//   }
-//   let sock = sockets[index];
-//   let splines = sock.splines;
-//   if (side == sideType.INSIDE) {
-//     return splines.inner ? splines.inner : null;
-//   } else {
-//     return splines.outer ? splines.outer : null;
-//   }
-// }
 
 function keyPressed() {
   // console.log(key);
   if (key.toLowerCase() == 'n') {
-    nextSolution();
+    next();
   }
   if (key.toLowerCase() == 'p') {
     previous();
@@ -170,6 +156,7 @@ function windowResized() {
 }
 
 function createRings() {
+  totalAttempts++;
   if (typeof globalSeed == 'number') {
     randomSeed(globalSeed);
   } else {
@@ -222,19 +209,24 @@ function createRings() {
   // let validSolutions = checkSubSolutions(rings, 0);
   findSolutions(rings);
   currentSolution = 0;
-  if (validSolutions.length == 1) {
-    // console.log("Solved!")
-    // console.log(validSolutions);
-    nextSolution();
-  } else {
-    // console.log("Unsolved")
-    // console.log(validSolutions);
-    if(attempt > 1000){
-      console.log( "Couldn't generate solvable puzzle");
-    }else{
+  if (validSolutions === 0) {
+    validSolutions=[];
+    if (millis() < start + timeLimit) {
       attempt++;
-    createRings();
+      createRings();
     }
+  } else
+  if (validSolutions === 2) {
+    validSolutions=[0,0];
+    if (millis() < start + timeLimit) {
+      attempt++;
+      createRings();
+    }
+  } else if (validSolutions.length == 1) {
+    console.log("Solved!")
+    console.log(validSolutions);
+    nextSolution();
+    generating = false;
   }
   attempt = 0;
 }
