@@ -1,6 +1,7 @@
 class Socket {
-  constructor(ring, index, position, side) {
+  constructor(ring, index, angle, position, side) {
     this.index = index;
+    this.angle = angle;
     this.position = position;
     this.spline = null;
     this.ring = ring;
@@ -10,6 +11,7 @@ class Socket {
   connect(spline, startOrEnd) {
     if(this.spline){
       console.log("Overloaded socket!");
+      this.overloaded = true;
     }
       this.spline = spline;
       this.type = startOrEnd;

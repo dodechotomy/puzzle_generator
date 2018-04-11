@@ -3,8 +3,6 @@ let start = 0;
 let rings = [];
 let pastRings = [];
 let thickness = 76;
-let sectors = 16;
-let ringCount = 4;
 let avoidCycles = false;
 let speed = 0.01;
 let delay = 250;
@@ -17,10 +15,9 @@ let validSolutions;
 let currentSolution = 0;
 let attempt = 0;
 let totalAttempts = 0;
-let timeLimit = 1000 / 30;
+let timeLimit = 1000 / 4;
 let timePassed = 0;
 let debug = false;
-let target = Math.PI * 2 / sectors;
 let generating = false;
 // let globalSeed = 123;
 let trees = [];
@@ -37,7 +34,12 @@ const splineRequirements = {
   someCrossings: true
 }
 let settings = {
-  QUICKMODE: true
+  quickmode: true,
+  sectors: 16,
+  ringCount: 4,
+  closeness: 10,
+  solutionsMax: 100,
+  simpleCenter: true
 }
 
 
@@ -55,7 +57,7 @@ function draw() {
   if (generating) {
     timePassed = millis() - start;
     document.getElementById("totalTime").innerHTML = "in " + floor(timePassed / 1000) + " seconds";
-    createRings();
+    createPuzzle();
   }
   if (generating) {
     // return;
@@ -86,6 +88,7 @@ function draw() {
 
 function solve(i = 0) {
   findSolutions(rings);
+  currentSolution = -1;
   nextSolution();
 }
 
@@ -94,15 +97,16 @@ function nextSolution() {
     console.log("no solutions");
     return;
   }
-  setRotations(validSolutions[currentSolution]);
   currentSolution++;
   currentSolution = currentSolution % validSolutions.length;
+  setRotations(validSolutions[currentSolution].rotation);
   checkSingleSolution(rings);
+  console.log(validSolutions[currentSolution].rotation);
 }
 
 function setRotations(rots) {
   if (rots.length !== rings.length) {
-    debugger;
+    // debugger;
     return;
   }
   for (var i = 0; i < rots.length; i++) {
@@ -143,6 +147,9 @@ function keyPressed() {
   if (key.toLowerCase() == 'n') {
     next();
   }
+  if (key.toLowerCase() == 'w') {
+    nextSolution();
+  }
   if (key.toLowerCase() == 'p') {
     previous();
   }
@@ -155,7 +162,7 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
 
-function createRings() {
+function createPuzzle() {
   totalAttempts++;
   if (typeof globalSeed == 'number') {
     randomSeed(globalSeed);
@@ -164,23 +171,57 @@ function createRings() {
     console.log("seed: " + seed);
     randomSeed(seed);
   }
+  makeRings();
+
+  for (let i = 0; i < rings.length; i++) {
+    let r = rings[i];
+    r.validSplines = false;
+    let loopCount = 0;
+    while (r.validSplines == false) {
+      loopCount++;
+      if (loopCount >= 1000) {
+        // debugger;
+        throw "Infinite loop";
+      }
+      r.splines = clusterSockets(r);
+      r.validSplines = validateSplines(r);
+    }
+  }
+  validSolutions = findSolutions(rings);
+  // let validSolutions = checkSubSolutions(rings, 0);
+  currentSolution = 0;
+  if (validSolutions.length > 0 && validSolutions.length <= settings.solutionsMax) { //validSolutions.length == 1 || validSolutions == 2) {
+    console.log("Solved!")
+    console.log(validSolutions);
+    nextSolution();
+    generating = false;
+  } else if (millis() < start + timeLimit) {
+    attempt++;
+    createPuzzle();
+
+  }
+  attempt = 0;
+}
+
+function makeRings() {
   rings = [];
   let prevRing = null;
-  for (let i = 0; i < ringCount; i++) {
-    let center = createVector(width / 2, height / 2);
+  let center = createVector(width / 2, height / 2);
+  for (let i = 0; i < settings.ringCount; i++) {
     let innerRadius = thickness * (i + 1);
-    let innerSockets = sectors;
-    // if (prevRing) {
-    //   innerSockets = prevRing.outerSockets;
-    // }
-    let outerSockets = sectors;
-    if (i == ringCount - 1) {
+    // let innerSockets =  settings.sectors;
+    let innerSockets = prevRing ? prevRing.outerSockets : settings.sectors;
+    let outerSockets = settings.sectors;
+    if (i == settings.ringCount - 1) {
       outerSockets = 0;
     }
     if (i == 0) {
       innerSockets = 0;
+      if (settings.simpleCenter) {
+        outerSockets /= 2;
+      }
     }
-    let r = new Ring(i, center, innerRadius, thickness, innerSockets, outerSockets);
+    let r = new Ring(i, center.copy(), innerRadius, thickness, innerSockets, outerSockets);
     r.innerRing = prevRing;
     if (prevRing) {
       prevRing.outerRing = r;
@@ -191,45 +232,8 @@ function createRings() {
     rings.push(r);
     prevRing = r;
   }
-
-  for (let i = 0; i < rings.length; i++) {
-    let r = rings[i];
-    r.validSplines = false;
-    let loopCount = 0;
-    while (r.validSplines == false) {
-      loopCount++;
-      if (loopCount >= 1000) {
-        debugger;
-        throw "Infinite loop";
-      }
-      r.splines = clusterSockets(r);
-      r.validSplines = validateSplines(r);
-    }
-  }
-  // let validSolutions = checkSubSolutions(rings, 0);
-  findSolutions(rings);
-  currentSolution = 0;
-  if (validSolutions === 0) {
-    validSolutions=[];
-    if (millis() < start + timeLimit) {
-      attempt++;
-      createRings();
-    }
-  } else
-  if (validSolutions === 2) {
-    validSolutions=[0,0];
-    if (millis() < start + timeLimit) {
-      attempt++;
-      createRings();
-    }
-  } else if (validSolutions.length == 1) {
-    console.log("Solved!")
-    console.log(validSolutions);
-    nextSolution();
-    generating = false;
-  }
-  attempt = 0;
 }
+// function makeRing
 
 function wrap(n, s, e) {
   if (n < s) {
@@ -239,4 +243,10 @@ function wrap(n, s, e) {
     n = n - e;
   }
   return n;
+}
+
+function angleDistance(a, b) {
+  let d1 = abs(a - b) % TWO_PI;
+  let d2 = TWO_PI - d1;
+  return min(d1, d2);
 }

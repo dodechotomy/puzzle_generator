@@ -4,16 +4,16 @@ function pickTwoNodes(cluster, allowBacktrack) {
     let diff = abs((n.index - node1.index)) % 2
     return diff == 1
   });
-  if (!allowBacktrack) {
-    filteredCluster = filteredCluster.filter(function(n) {
-      let matchInner = n.innerRing && (n.innerRing == node1.innerRing);
-      let matchOuter = n.outerRing && (n.outerRing == node1.outerRing);
-      return !(matchInner || matchOuter);
-    });
-  }
+  // if (!allowBacktrack) {
+  //   filteredCluster = filteredCluster.filter(function(n) {
+  //     let matchInner = n.innerRing && (n.innerRing == node1.innerRing);
+  //     let matchOuter = n.outerRing && (n.outerRing == node1.outerRing);
+  //     return !(matchInner || matchOuter);
+  //   });
+  // }
   let node2;
   let diff = 0;
-  for(let i =0; i < 10; i++){
+  for(let i =0; i < settings.closeness; i++){
     let a = filteredCluster[floor(random(filteredCluster.length))];
     let d = abs(a.index - node1.index);
     if(!node2 || d < diff){
@@ -53,8 +53,8 @@ function extractClusters(oldCluster) {
   let newClusters = [];
   while (oldCluster.length > 0) {
     let cluster = [];
-    let start = oldCluster[0];
-    removeItem(oldCluster, start);
+    let start = oldCluster.pop();
+    // removeItem(oldCluster, start);
     cluster.push(start)
     let c = start;
     while (c.next && (c.next != start)) {
@@ -96,13 +96,13 @@ function shadowGraph(ring, splines, checkCycles = true) {
       direction *= -1;
     }
     //Inside neighbours
-    let insideNeighbours = scanNeighbours(s, innerSockets, innerBacktracks, crossings);
+    let insideNeighbours = scanNeighbours(s, sideType.INNER, innerBacktracks, crossings);
     insideNeighbours.forEach(function(n) {
       addInside(s, n);
     });
     //Outside neighbours
     // direction *= -1;
-    let outsideNeighbours = scanNeighbours(s, outerSockets, outerBacktracks, crossings);
+    let outsideNeighbours = scanNeighbours(s, sideType.OUTER, outerBacktracks, crossings);
     outsideNeighbours.forEach(function(n) {
       addInside(n, s);
     });
@@ -141,33 +141,47 @@ function shadowGraph(ring, splines, checkCycles = true) {
   }
   return leftAlive;
 }
+//
+// function scanNeighbours(main, sockets, backtracks, crossings) {
+//   let start = main.start;
+//   let end = main.end;
+//   let targetList = [];
+//   if (start.index == end.index) {
+//     return targetList;
+//   }
+//   if (end.index < 0 || end.index > sockets.length) {
+//     return targetList;
+//   }
+//   let s = start.angle;
+//   let e = end.angle;
+//   let direction = s <= e ? 1 : -1;
+//   let history = 0;
+//   for (let i = start.index; sockets[i].angle != e; i = wrap(i + direction, 0, sockets.length)) {//This feel kludgy
+//     history++;
+//     if(history>1000){
+//       debugger;
+//       // throw "infinite loop";
+//     }
+//     let c = sockets[i];
+//     if (c.spline && backtracks.includes(c.spline)) {
+//       targetList.push(c.spline);
+//     }
+//     if (c.spline && c.spline.sideType == sideType.CROSSING) {
+//       targetList.push(c.spline);
+//     }
+//   }
+//   return targetList;
+// }
 
-function scanNeighbours(main, sockets, backtracks, crossings) {
-
+function scanNeighbours(main, side, backtracks, crossings) {
+  // debugger;
   let start = main.start;
   let end = main.end;
-  let targetList = [];
-  if (start.index == end.index) {
-    return targetList;
-  }
-  if (end.index < 0 || end.index > sockets.length) {
-    return targetList;
-  }
-  let direction = start.index <= end.index ? 1 : -1;
-  for (let i = start.index; i != end.index; i = wrap(i + direction, 0, sockets.length)) {
-    // history.push(i);
-    let c = sockets[i];
-    if (c == main) {
-      continue;
-    }
-    if (c.spline && backtracks.includes(c.spline)) {
-      targetList.push(c.spline);
-    }
-    if (c.spline && c.spline.sideType == sideType.CROSSING) {
-      targetList.push(c.spline);
-    }
-  }
-  return targetList;
+  let s = main.start.angle;
+  let e = main.end.angle;
+  let coveredSockets = main.ring.getSocketsInRange(s,e,side);
+  let coveredSplines = coveredSockets.map(x=>x.spline);
+  return coveredSplines;
 }
 
 function findBacktrackTrees(ring, sockets, splines, side) {
@@ -236,7 +250,7 @@ function assignLevels(splines) {
   splines.forEach(function(s) {
     s.originalLevel = s.level;
     s.level = map(s.level, minimum, maximum, 0, 1);
-    s.hue =  180;
+    // s.hue =  180;
     // s.hue = s.level * 360;
   });
 }
@@ -303,6 +317,10 @@ function assignInwards(root, level = 0, depth = 0) {
   }
   root.level = min(root.level, level);
   root.inside.forEach(function(t) {
+    if(depth > 100){
+      // debugger;
+    }
+    // console.log(depth);
     let branch = assignInwards(t, root.level - 1, depth + 1);
     if (branch) {
       tree = tree.concat(branch);
@@ -343,18 +361,19 @@ function clusterSockets(ring, allowBacktrack = true) {
   let sockets = ring.sockets;
   let clusters = [];
   let splines = [];
+  // debugger;
   let initialCluster = createInitialCluster(sockets);
   clusters.push(initialCluster);
-  if (avoidCycles) {
-    let c = clusters.pop();
-    let zeroes = c.filter(function(c) {
-      return (c.target.index == 0);
-    });
-    let spline = new Spline(ring, zeroes[0].target, zeroes[1].target);
-    splines.push(spline)
-    let newClusters = removeAndRecluster(c, zeroes[0], zeroes[1]);
-    clusters = clusters.concat(newClusters);
-  }
+  // if (avoidCycles) {
+  //   let c = clusters.pop();
+  //   let zeroes = c.filter(function(c) {
+  //     return (c.target.index == 0);
+  //   });
+  //   let spline = new Spline(ring, zeroes[0].target, zeroes[1].target);
+  //   splines.push(spline)
+  //   let newClusters = removeAndRecluster(c, zeroes[0], zeroes[1]);
+  //   clusters = clusters.concat(newClusters);
+  // }
   while (clusters.length > 0) {
     let c = clusters.pop();
     let nodes = pickTwoNodes(c, allowBacktrack);

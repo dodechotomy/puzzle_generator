@@ -1,5 +1,5 @@
 class Ring {
-  constructor(index, center, innerRadius, thickness, innerSockets = sectors, outerSockets = sectors) {
+  constructor(index, center, innerRadius, thickness, innerSockets, outerSockets) {
     this.index = index;
     this.center = center;
     this.innerRadius = innerRadius;
@@ -10,29 +10,35 @@ class Ring {
     this.outerRing = null;
     this.rotation = 0;
     this.rotationIndex = 0;
-    this.rotationMax = sectors;
-    if (typeof innerSockets === 'number') {
-      this.innerSockets = this.createSockets(innerSockets, this.innerRadius, sideType.INSIDE);
-    } else if (Array.isArray(innerSockets)) {
-      this.innerSockets = innerSockets;
+
+    let count = innerSockets;
+    if (Array.isArray(innerSockets)) {
+      count = innerSockets.length;
+    }
+    if (typeof count === 'number') {
+      this.innerSockets = this.createSockets(count, this.innerRadius, sideType.INSIDE);
     } else {
       this.innerSockets = [];
     }
 
-    if (typeof outerSockets === 'number') {
-      this.outerSockets = this.createSockets(outerSockets, this.outerRadius, sideType.OUTSIDE);
-    } else if (Array.isArray(outerSockets)) {
-      this.outerSockets = outerSockets;
+    count = outerSockets;
+    if (Array.isArray(outerSockets)) {
+      count = outerSockets.length;
+    }
+    if (typeof count === 'number') {
+      this.outerSockets = this.createSockets(count, this.outerRadius, sideType.OUTSIDE);
     } else {
       this.outerSockets = [];
     }
+    this.rotationMax = this.innerSockets.length || this.outerSockets.length;
   }
 
   createSockets(count, radius, side) {
     let sockets = [];
     for (let i = 0; i < count; i++) {
-      let position = p5.Vector.fromAngle(TWO_PI * i / count).mult(radius)
-      let sock = new Socket(this, i, position, side);
+      let angle = TWO_PI * i / count;
+      let position = p5.Vector.fromAngle(angle).mult(radius)
+      let sock = new Socket(this, i, angle, position, side);
       sockets.push(sock);
     }
     return sockets;
@@ -51,7 +57,6 @@ class Ring {
       this.splines[i].show();
     }
     if (debug) {
-      debugger;
       let s = this.sockets;
       for (let i = 0; i < s.length; i++) {
         s[i].show();
@@ -71,7 +76,7 @@ class Ring {
     if (side === sideType.OUTSIDE) {
       return this.outerSockets;
     }
-    return this.sockets;
+    return null;
   }
   // setRotationIndex() {
   //   this.rotationIndex = rotationIndex;
@@ -105,8 +110,26 @@ class Ring {
 
   getSocket(index, side) {
     let socks = this.getSocketsOnSide(side);
-    let i = index % socks.length;
+    let i = wrap(index, 0, socks.length);
     return socks[i];
+  }
+  getSocketByAngle(angle, side) {
+    let socks = this.getSocketsOnSide(side);
+    let a = angle % TWO_PI;
+    let index = round(map(a, 0, TWO_PI, 0, socks.length));
+    return socks[index];
+  }
+  getSocketsInRange(start, end, side) {
+    let socks = this.getSocketsOnSide(side);
+    let innerRange = function(a) {
+      return a >= start && a <= end
+    };
+    let outerRange = function(a) {
+      return a >= start || a <= end
+    };
+    let cond = start < end ? innerRange : outerRange;
+    let inRange = socks.filter(s => cond(s.angle % TWO_PI));
+    return inRange;
   }
 
 
