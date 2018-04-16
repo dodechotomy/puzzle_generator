@@ -49,12 +49,12 @@ function checkSingleSolution(rings) {
   let visited = [];
   let loops = [];
   let nonLoops = [];
-  let unvisited = [];
+  let splines = [];
 
   for (let i = 0; i < rings.length; i++) {
-    unvisited = unvisited.concat(rings[i].splines);
+    splines = splines.concat(rings[i].splines);
   }
-  if (unvisited.length < 1) {
+  if (splines.length < 1) {
     return {
       solved: false,
       loops: [],
@@ -63,13 +63,13 @@ function checkSingleSolution(rings) {
   }
   // while (unvisited.length > 0) {
   let loop = [];
-  let l = extractLoop(unvisited);
+  let l = extractLoop(splines);
   if (l.isLoop) {
     loops.push(l.loop);
   } else {
     nonLoops.push(l.loop);
   }
-  unvisited = l.leftOver;
+  let leftOver = l.leftOver;
   // }
   for (var i = 0; i < loops.length; i++) {
     for (var j = 0; j < loops[i].length; j++) {
@@ -79,18 +79,18 @@ function checkSingleSolution(rings) {
   }
 
   return {
-    solved: unvisited.length == 0,
+    solved: leftOver == 0,
     loops: loops,
     nonLoops: nonLoops
   };
 }
 
 function extractLoop(splines) {
-  let unvisited = splines.slice();
+  // let unvisited = splines.slice();
   let loop = [];
   let isLoop = false;
 
-  let startSpline = unvisited.pop();
+  let startSpline = splines[0];//unvisited.pop();
   loop.push(startSpline);
   let currentSpline = startSpline;
   let currentSocket = currentSpline.start;
@@ -117,10 +117,10 @@ function extractLoop(splines) {
         break;
       } else {
         loop.push(nextSpline);
-        let index = unvisited.indexOf(nextSpline);
-        if (index >= 0) {
-          unvisited.splice(index, 1);
-        }
+        // let index = unvisited.indexOf(nextSpline);
+        // if (index >= 0) {
+        //   unvisited.splice(index, 1);
+        // }
       }
       currentSpline = nextSpline;
       currentSocket = nextSocket;
@@ -131,6 +131,6 @@ function extractLoop(splines) {
   return {
     isLoop: isLoop,
     loop: loop,
-    leftOver: unvisited
+    leftOver: splines.length - loop.length
   };
 }
