@@ -1,6 +1,6 @@
 function findSolutions(rings) {
-  let solutions = checkSubSolutions(rings, 1);
-  return solutions;
+  validSolutions = checkSubSolutions(rings, 1);
+  return validSolutions;
 }
 
 function checkSubSolutions(rings, ringIndex) {
@@ -14,41 +14,35 @@ function checkSubSolutions(rings, ringIndex) {
   } else if (ring.innerSockets && ring.innerSockets.length > 0) {
     socks = ring.innerSockets;
   } else {
-    //Ring with no sockets?
+    // debugger; //Ring with no sockets?
     return [];
   }
 
   if (ringIndex == rings.length - 1) {
-    return checkLastRing(rings);
+    let solutions = [];
+    for (let i = 0; i < socks.length; i++) {
+      ring.rotationIndex = i;
+      let newSolution = checkSingleSolution(rings);
+      if (newSolution.solved) {
+        solutions.push(rings.map(x => x.rotationIndex));
+        if (settings.QUICKMODE && solutions.length > 0) {
+          return solutions;
+        }
+      }
+    }
+    return solutions;
   } else {
     let subSolutions = [];
-    for (let i = 0; i < ring.rotationMax; i++) {
+    for (let i = 0; i < socks.length; i++) {
       ring.rotationIndex = i;
-      let newSolutions = checkSubSolutions(rings, ringIndex + 1);
-      subSolutions = subSolutions.concat(newSolutions);
-      if (settings.quickmode && subSolutions.length > 1) {
+      let newSolution = checkSubSolutions(rings, ringIndex + 1);
+      subSolutions = subSolutions.concat(newSolution);
+      if (settings.QUICKMODE && subSolutions.length > 1) {
         return subSolutions;
       }
     }
     return subSolutions;
   }
-}
-
-function checkLastRing(rings) {
-  let ring = rings[rings.length - 1];
-  let solutions = [];
-  for (let i = 0; i < ring.rotationMax; i++) {
-    ring.rotationIndex = i;
-    let newSolution = checkSingleSolution(rings);
-    if (newSolution.solved) {
-      newSolution.rotation = rings.map(x => x.rotationIndex)
-      solutions.push(newSolution);
-      if (settings.quickmode && solutions.length > 1) {
-        return solutions;
-      }
-    }
-  }
-  return solutions;
 }
 
 function checkSingleSolution(rings) {
@@ -67,6 +61,7 @@ function checkSingleSolution(rings) {
       nonLoops: []
     };
   }
+  // while (unvisited.length > 0) {
   let loop = [];
   let l = extractLoop(unvisited);
   if (l.isLoop) {
@@ -75,37 +70,32 @@ function checkSingleSolution(rings) {
     nonLoops.push(l.loop);
   }
   unvisited = l.leftOver;
-  if (unvisited < 0) {
-    throw "loop too long";
-  }
-  if (unvisited == 0 && loops.length == 1) {
-    colourLoop(loops[0]);
+  // }
+  for (var i = 0; i < loops.length; i++) {
+    for (var j = 0; j < loops[i].length; j++) {
+      let hu = map(j, 0, loops[i].length + 1, 0, 360);
+      loops[i][j].hue = hu;
+    }
   }
 
   return {
-    solved: unvisited == 0 && loops.length == 1 && nonLoops.length == 0,
+    solved: unvisited.length == 0,
     loops: loops,
     nonLoops: nonLoops
   };
 }
 
-function colourLoop(loop) {
-  for (var j = 0; j < loop.length; j++) {
-    let hu = map(j, 0, loop.length, 0, 360);
-    loop[j].hue = hu;
-  }
-}
-
 function extractLoop(splines) {
-  // let unvisited = splines.slice();
+  let unvisited = splines.slice();
   let loop = [];
   let isLoop = false;
 
-  let startSpline = splines[0];
+  let startSpline = unvisited.pop();
   loop.push(startSpline);
   let currentSpline = startSpline;
   let currentSocket = currentSpline.start;
   let nextSocket, nextSpline;
+  let order = 0;
   while ((startSpline !== nextSpline) && (splines.length > 0)) {
     nextSocket = currentSpline.otherSocket(currentSocket);
     let nextRing, nextSide;
@@ -117,18 +107,9 @@ function extractLoop(splines) {
       nextRing = nextSocket.ring.outerRing;
       nextSide = sideType.INSIDE;
     }
-    if (settings.simpleCenter) {
-      let a = nextSocket.angle + currentSpline.ring.rotation - nextRing.rotation;
-      a = wrap(a, 0, TWO_PI);
-      nextSocket = nextRing.getSocketByAngle(a, nextSide);
-    } else {
-      let a = nextSocket.index + currentSpline.ring.rotationIndex - nextRing.rotationIndex;
-      let s = nextRing.getSocket(a, nextSide);
-      if (!s) {
-        throw "next socket doesn't exist";
-      }
-      nextSocket = s
-    }
+    let i = nextSocket.index + currentSpline.ring.rotationIndex - nextRing.rotationIndex;
+    i = wrap(i, 0, nextRing.rotationMax);
+    nextSocket = nextRing.getSocket(i, nextSide);
     nextSpline = nextSocket.spline;
     if (nextSpline) {
       if (nextSpline === startSpline) {
@@ -136,6 +117,10 @@ function extractLoop(splines) {
         break;
       } else {
         loop.push(nextSpline);
+        let index = unvisited.indexOf(nextSpline);
+        if (index >= 0) {
+          unvisited.splice(index, 1);
+        }
       }
       currentSpline = nextSpline;
       currentSocket = nextSocket;
@@ -146,6 +131,6 @@ function extractLoop(splines) {
   return {
     isLoop: isLoop,
     loop: loop,
-    leftOver: splines.length - loop.length
+    leftOver: unvisited
   };
 }

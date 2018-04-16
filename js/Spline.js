@@ -18,13 +18,15 @@ class Spline {
     }
     this.start.connect(this, 'start');
     this.end.connect(this, 'end');
-    this.hue = random(360);
   }
   show() {
     strokeWeight(2);
     noFill();
     colorMode(HSB);
-    let c = color(this.hue, 100, 75, 50);
+    // let hue = spline.level * 360 * sectors * 1.5;
+    // hue = hue % 360;
+    let c = color(this.hue, 100, 75, 50)
+    // colorMode(RGB);
     stroke(c);
     this.drawLines();
   }
