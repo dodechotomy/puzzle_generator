@@ -24,6 +24,9 @@ let target = Math.PI * 2 / sectors;
 let generating = false;
 // let globalSeed = 123;
 let trees = [];
+let batchID = 0;
+let unitID = 0;
+let saveLast = false;
 const sideType = {
   INSIDE: "inside",
   OUTSIDE: "outside",
@@ -36,18 +39,41 @@ const splineRequirements = {
   notAllCrossings: true,
   someCrossings: true
 }
+let ringRadii = [[12.25,22.25],[25.25,36],[39,49.75],[51.75,64]];
 let settings = {
-  QUICKMODE: true
+  QUICKMODE: true,
+  strokeWeight: 1,
+  ringFillColor: 235,
+  scale: 1,
+  renderScale: 1,
+  batchMode: false,
+  batchSize: 10,
+  seed: 0
 }
 
 
 function setup() {
   createCanvas(window.innerWidth, window.innerHeight, SVG); // Create SVG Canvas
+  strokeCap(PROJECT);
+// settings.ringFillColor = color('')
   // start = millis();
   // checkSingleSolution(rings);
 }
 
 function draw() {
+
+  if(saveLast){
+    saveLast = false;
+      saveAll("batch"+batchID+"unit"+unitID);
+      if(settings.batchMode && unitID < settings.batchSize){
+        unitID++;
+        next();
+        if(unitID >=settings.batchSize){
+          settings.batchMode = false;
+        }
+      }
+  }
+
   document.getElementById("attemptCount").innerHTML = "Attempts: " + totalAttempts;
   if (validSolutions) {
     document.getElementById("solutionCount").innerHTML = "with " + validSolutions.length + " solutions";
@@ -61,10 +87,14 @@ function draw() {
     // return;
   } else {
     document.getElementById("generatingOutput").innerHTML = "done";
+    if(settings.batchMode){
+      saveLast = true;
+    }
   }
   document.getElementById("timePerAttempt").innerHTML = round(totalAttempts / (timePassed / 1000)) + " attempts per second";
 
-  clear();
+  // clear();
+  background(0);
   strokeWeight(2);
   stroke('#ED225D');
   noFill();
@@ -78,13 +108,22 @@ function draw() {
       }
     }
   }
+  push();
+  translate(width/2,height/2);
+  scale(settings.renderScale);
   for (let i = 0; i < rings.length; i++) {
     rings[i].show();
   }
+  pop();
   // noLoop();
 }
 
-function solve(i = 0) {
+function startBatch(){
+  batchID = millis();
+  unitID = 0;
+  settings.batchMode = true;
+}
+function solve() {
   findSolutions(rings);
   nextSolution();
 }
@@ -110,8 +149,16 @@ function setRotations(rots) {
   }
 }
 
-function saveAll() {
-  save();
+function saveAll(name) {
+  let fileName = name;
+  if(!name || typeof name != "String"){
+    fileName = "puzzle"+settings.seed;
+  }
+  if(settings.batchMode){
+    fileName = unitID + "of" + (settings.batchSize-1) +"_"+fileName;
+  }
+  // console.log(fileName);
+  save(fileName);
 }
 
 function next() {
@@ -158,17 +205,19 @@ function windowResized() {
 function createRings() {
   totalAttempts++;
   if (typeof globalSeed == 'number') {
+    settings.seed = globalSeed;
     randomSeed(globalSeed);
   } else {
-    let seed = floor(millis());
-    console.log("seed: " + seed);
-    randomSeed(seed);
+    settings.seed = floor(millis());
+    console.log("seed: " + settings.seed);
+    randomSeed(settings.seed);
   }
   rings = [];
   let prevRing = null;
-  for (let i = 0; i < ringCount; i++) {
-    let center = createVector(width / 2, height / 2);
-    let innerRadius = thickness * (i + 1);
+  for (let i = 0; i < ringRadii.length; i++) {
+    let center = createVector(0,0);
+    let innerRadius = ringRadii[i][0]*settings.scale;
+    let thickness = ringRadii[i][1]*settings.scale - innerRadius;
     let innerSockets = sectors;
     // if (prevRing) {
     //   innerSockets = prevRing.outerSockets;

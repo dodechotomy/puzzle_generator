@@ -5,12 +5,14 @@ class Ring {
     this.innerRadius = innerRadius;
     this.thickness = thickness;
     this.outerRadius = innerRadius + thickness;
+    this.middleRadius = innerRadius + thickness/2;
     this.splines = [];
     this.innerRing = null;
     this.outerRing = null;
     this.rotation = 0;
     this.rotationIndex = 0;
     this.rotationMax = sectors;
+    this.fillColor = settings.ringFillColor;
     if (typeof innerSockets === 'number') {
       this.innerSockets = this.createSockets(innerSockets, this.innerRadius, sideType.INSIDE);
     } else if (Array.isArray(innerSockets)) {
@@ -43,10 +45,12 @@ class Ring {
     push();
     translate(this.center.x, this.center.y);
     rotate(this.rotation);
-    stroke('#ED225D');
-    strokeWeight(0.2);
-    ellipse(0, 0, this.innerRadius * 2, this.innerRadius * 2);
-    ellipse(0, 0, this.outerRadius * 2, this.outerRadius * 2);
+    stroke(this.fillColor);
+    strokeWeight(this.thickness);
+    ellipse(0,0,this.middleRadius*2,this.middleRadius*2);
+    // strokeWeight(0.2);
+    // ellipse(0, 0, this.innerRadius * 2, this.innerRadius * 2);
+    // ellipse(0, 0, this.outerRadius * 2, this.outerRadius * 2);
     for (let i = 0; i < this.splines.length; i++) {
       this.splines[i].show();
     }

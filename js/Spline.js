@@ -3,6 +3,7 @@ class Spline {
     this.ring = ring;
     this.start = start;
     this.end = end;
+    this.strokeWeight = settings.strokeWeight*settings.scale;
     if (ring.innerSockets.includes(this.start) && ring.innerSockets.includes(this.end)) {
       this.sideType = sideType.INSIDE;
     } else
@@ -20,7 +21,7 @@ class Spline {
     this.end.connect(this, 'end');
   }
   show() {
-    strokeWeight(2);
+    strokeWeight(this.strokeWeight);
     noFill();
     colorMode(HSB);
     // let hue = spline.level * 360 * sectors * 1.5;
