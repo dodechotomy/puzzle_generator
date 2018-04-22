@@ -39,39 +39,50 @@ const splineRequirements = {
   notAllCrossings: true,
   someCrossings: true
 }
-let ringRadii = [[12.25,22.25],[25.25,36],[39,49.75],[51.75,64]];
+let ringRadii = [
+  [12.75, 21.75],
+  [25.75, 35.5],
+  [39.5, 49.25],
+  [52.25, 63.5]
+];
+let pixelWidth = 362.83;
+let mmWidth = 128;
 let settings = {
   QUICKMODE: true,
   strokeWeight: 1,
-  ringFillColor: 235,
+  ringFillColor: 255,
   scale: 1,
-  renderScale: 1,
+  renderScale: pixelWidth / mmWidth,
   batchMode: false,
   batchSize: 10,
-  seed: 0
+  seed: 0,
+  minSolutions: 1,
+  maxSolutions: 2,
+  maxSplines: [4,100,100,100],
+  closeness: 10
 }
 
 
 function setup() {
-  createCanvas(window.innerWidth, window.innerHeight, SVG); // Create SVG Canvas
+  createCanvas(pixelWidth, pixelWidth, SVG); // Create SVG Canvas
   strokeCap(PROJECT);
-// settings.ringFillColor = color('')
+  // settings.ringFillColor = color('')
   // start = millis();
   // checkSingleSolution(rings);
 }
 
 function draw() {
 
-  if(saveLast){
+  if (saveLast) {
     saveLast = false;
-      saveAll("batch"+batchID+"unit"+unitID);
-      if(settings.batchMode && unitID < settings.batchSize){
-        unitID++;
-        next();
-        if(unitID >=settings.batchSize){
-          settings.batchMode = false;
-        }
+    saveAll();
+    if (settings.batchMode && unitID < settings.batchSize) {
+      unitID++;
+      next();
+      if (unitID >= settings.batchSize) {
+        settings.batchMode = false;
       }
+    }
   }
 
   document.getElementById("attemptCount").innerHTML = "Attempts: " + totalAttempts;
@@ -87,16 +98,16 @@ function draw() {
     // return;
   } else {
     document.getElementById("generatingOutput").innerHTML = "done";
-    if(settings.batchMode){
+    if (settings.batchMode) {
       saveLast = true;
     }
   }
   document.getElementById("timePerAttempt").innerHTML = round(totalAttempts / (timePassed / 1000)) + " attempts per second";
 
-  // clear();
-  background(0);
+  clear();
+  background(255);
   strokeWeight(2);
-  stroke('#ED225D');
+  // stroke('#ED225D');
   noFill();
   if (animate) {
     if (moving) {
@@ -109,7 +120,7 @@ function draw() {
     }
   }
   push();
-  translate(width/2,height/2);
+  translate(width / 2, height / 2);
   scale(settings.renderScale);
   for (let i = 0; i < rings.length; i++) {
     rings[i].show();
@@ -118,11 +129,12 @@ function draw() {
   // noLoop();
 }
 
-function startBatch(){
+function startBatch() {
   batchID = millis();
   unitID = 0;
   settings.batchMode = true;
 }
+
 function solve() {
   findSolutions(rings);
   nextSolution();
@@ -151,11 +163,11 @@ function setRotations(rots) {
 
 function saveAll(name) {
   let fileName = name;
-  if(!name || typeof name != "String"){
-    fileName = "puzzle"+settings.seed;
+  if (!name || typeof name != "String") {
+    fileName = "puzzle" + settings.seed;
   }
-  if(settings.batchMode){
-    fileName = unitID + "of" + (settings.batchSize-1) +"_"+fileName;
+  if (settings.batchMode) {
+    fileName = unitID + "of" + (settings.batchSize - 1) + "_" + fileName;
   }
   // console.log(fileName);
   save(fileName);
@@ -198,9 +210,9 @@ function keyPressed() {
   }
 }
 
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-}
+// function windowResized() {
+//   resizeCanvas(windowWidth, windowHeight);
+// }
 
 function createRings() {
   totalAttempts++;
@@ -208,20 +220,17 @@ function createRings() {
     settings.seed = globalSeed;
     randomSeed(globalSeed);
   } else {
-    settings.seed = floor(millis());
+    settings.seed = floor(millis()*100);
     console.log("seed: " + settings.seed);
     randomSeed(settings.seed);
   }
   rings = [];
   let prevRing = null;
   for (let i = 0; i < ringRadii.length; i++) {
-    let center = createVector(0,0);
-    let innerRadius = ringRadii[i][0]*settings.scale;
-    let thickness = ringRadii[i][1]*settings.scale - innerRadius;
+    let center = createVector(0, 0);
+    let innerRadius = ringRadii[i][0] * settings.scale;
+    let thickness = ringRadii[i][1] * settings.scale - innerRadius;
     let innerSockets = sectors;
-    // if (prevRing) {
-    //   innerSockets = prevRing.outerSockets;
-    // }
     let outerSockets = sectors;
     if (i == ringCount - 1) {
       outerSockets = 0;
@@ -242,6 +251,12 @@ function createRings() {
   }
 
   for (let i = 0; i < rings.length; i++) {
+    if (i>0) {
+      let filledOuterSockets = rings[i-1].outerSockets.filter(s => (s.spline != null));
+      let indicesToKeep = filledOuterSockets.map(s => s.index);
+      if(indicesToKeep.length > 0 && indicesToKeep.length < rings[i-1].outerSockets.length)
+      rings[i].cullInnerSockets(indicesToKeep);
+    }
     let r = rings[i];
     r.validSplines = false;
     let loopCount = 0;
@@ -259,19 +274,20 @@ function createRings() {
   findSolutions(rings);
   currentSolution = 0;
   if (validSolutions === 0) {
-    validSolutions=[];
+    validSolutions = [];
     if (millis() < start + timeLimit) {
       attempt++;
       createRings();
     }
   } else
   if (validSolutions === 2) {
-    validSolutions=[0,0];
+    validSolutions = [0, 0];
     if (millis() < start + timeLimit) {
       attempt++;
       createRings();
     }
-  } else if (validSolutions.length == 1) {
+  } else if (validSolutions.length >= settings.minSolutions && validSolutions.length <= settings.maxSolutions) {
+    //TODO Add suport for accepting 2 solutions
     console.log("Solved!")
     console.log(validSolutions);
     nextSolution();

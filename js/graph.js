@@ -1,20 +1,26 @@
 function pickTwoNodes(cluster, allowBacktrack) {
   let node1 = cluster[floor(random(cluster.length))];
-  let filteredCluster = cluster.filter(function(n) {
+  let activeCluster = cluster;
+  let filteredCluster = activeCluster.filter(function(n) {
     let diff = abs((n.index - node1.index)) % 2
     return diff == 1
   });
+  if(filteredCluster.length > 0){
+    activeCluster = filteredCluster;
+  }
+  let crossingOnlyCluster = activeCluster;
   if (!allowBacktrack) {
-    filteredCluster = filteredCluster.filter(function(n) {
-      let matchInner = n.innerRing && (n.innerRing == node1.innerRing);
-      let matchOuter = n.outerRing && (n.outerRing == node1.outerRing);
-      return !(matchInner || matchOuter);
+    crossingOnlyCluster = activeCluster.filter(function(n) {
+      return n.target.side != node1.target.side;
     });
+  }
+  if(crossingOnlyCluster.length > 0){
+    activeCluster = crossingOnlyCluster;
   }
   let node2;
   let diff = 0;
   for(let i =0; i < 20; i++){
-    let a = filteredCluster[floor(random(filteredCluster.length))];
+    let a = activeCluster[floor(random(activeCluster.length))];
     let d = abs(a.index - node1.index);
     if(!node2 || d < diff){
       diff = d;
@@ -157,7 +163,7 @@ function scanNeighbours(main, sockets, backtracks, crossings) {
   for (let i = start.index; i != end.index; i = wrap(i + direction, 0, sockets.length)) {
     // history.push(i);
     let c = sockets[i];
-    if (c == main) {
+    if (c == main || typeof c === 'undefined') {
       continue;
     }
     if (c.spline && backtracks.includes(c.spline)) {
@@ -180,6 +186,11 @@ function findBacktrackTrees(ring, sockets, splines, side) {
     let i = start.index + 1;
     i = wrap(i, 0, sockets.length);
     while (i != end.index) {
+      if(typeof sockets[i] === 'undefined'){
+        i++;
+        i = wrap(i, 0, sockets.length);
+        continue;
+      }
       let newSpline = sockets[i].spline;
       if (!newSpline) {
         i = (i + 1) % sockets.length;
@@ -269,6 +280,10 @@ function removeInside(a, b) {
 }
 
 function assignOutwards(root, level = 0, depth = 0) {
+  if(depth > 100){
+    console.log("Too deep!");
+    return [];
+  }
   let tree = [];
   root.outside = root.outside || [];
   if (typeof root.level !== 'number') {
@@ -292,6 +307,10 @@ function assignOutwards(root, level = 0, depth = 0) {
 }
 
 function assignInwards(root, level = 0, depth = 0) {
+  if(depth > 100){
+    console.log("Too deep!");
+    return [];
+  }
   let tree = [];
   root.inside = root.inside || [];
   if (typeof root.level !== 'number') {
@@ -321,6 +340,9 @@ function createInitialCluster(list) {
   let cluster = [];
   let prevNode = null;
   for (let i = 0; i < list.length; i++) {
+    if(typeof list[i] === 'undefined'){
+      continue;
+    }
     let node = {
       target: list[i],
       index: i,
@@ -339,25 +361,32 @@ function createInitialCluster(list) {
 }
 
 
-function clusterSockets(ring, allowBacktrack = true) {
+function clusterSockets(ring) {
   let sockets = ring.sockets;
   let clusters = [];
   let splines = [];
+  let maxSplines = settings.maxSplines;
   let initialCluster = createInitialCluster(sockets);
   clusters.push(initialCluster);
-  if (avoidCycles) {
+  // if (avoidCycles) {
+  //   let c = clusters.pop();
+  //   let zeroes = c.filter(function(c) {
+  //     return (c.target.index == 0);
+  //   });
+  //   let spline = new Spline(ring, zeroes[0].target, zeroes[1].target);
+  //   splines.push(spline)
+  //   let newClusters = removeAndRecluster(c, zeroes[0], zeroes[1]);
+  //   clusters = clusters.concat(newClusters);
+  // }
+
+  // let preferredNodes = ring.startingNodes;
+  while (clusters.length > 0 && splines.length < maxSplines[ring.index]) {
     let c = clusters.pop();
-    let zeroes = c.filter(function(c) {
-      return (c.target.index == 0);
-    });
-    let spline = new Spline(ring, zeroes[0].target, zeroes[1].target);
-    splines.push(spline)
-    let newClusters = removeAndRecluster(c, zeroes[0], zeroes[1]);
-    clusters = clusters.concat(newClusters);
-  }
-  while (clusters.length > 0) {
-    let c = clusters.pop();
-    let nodes = pickTwoNodes(c, allowBacktrack);
+    if(c.length%2==1){
+      break;
+    }
+    backTrack =  (splines.length > 1);
+    let nodes = pickTwoNodes(c, backTrack);
     let spline = new Spline(ring, nodes[0].target, nodes[1].target);
     splines.push(spline)
     let newClusters = removeAndRecluster(c, nodes[0], nodes[1]);

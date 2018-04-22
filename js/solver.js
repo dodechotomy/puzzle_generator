@@ -90,7 +90,7 @@ function extractLoop(splines) {
   let loop = [];
   let isLoop = false;
 
-  let startSpline = splines[0];//unvisited.pop();
+  let startSpline = splines[0]; //unvisited.pop();
   loop.push(startSpline);
   let currentSpline = startSpline;
   let currentSocket = currentSpline.start;
@@ -110,6 +110,9 @@ function extractLoop(splines) {
     let i = nextSocket.index + currentSpline.ring.rotationIndex - nextRing.rotationIndex;
     i = wrap(i, 0, nextRing.rotationMax);
     nextSocket = nextRing.getSocket(i, nextSide);
+    if (typeof nextSocket === 'undefined') {
+      break;
+    }
     nextSpline = nextSocket.spline;
     if (nextSpline) {
       if (nextSpline === startSpline) {

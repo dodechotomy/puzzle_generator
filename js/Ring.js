@@ -5,7 +5,7 @@ class Ring {
     this.innerRadius = innerRadius;
     this.thickness = thickness;
     this.outerRadius = innerRadius + thickness;
-    this.middleRadius = innerRadius + thickness/2;
+    this.middleRadius = innerRadius + thickness / 2;
     this.splines = [];
     this.innerRing = null;
     this.outerRing = null;
@@ -29,7 +29,19 @@ class Ring {
       this.outerSockets = [];
     }
   }
-
+  cullInnerSockets(indicesToKeep) {
+    if (indicesToKeep.length < 1 || (indicesToKeep.length % 2 == 1)) {
+      return;
+    }
+    let kept = [];
+    kept.length = this.innerSockets.length;
+    for (var i = 0; i < this.innerSockets.length; i++) {
+      if (indicesToKeep.indexOf(i) >= 0) {
+        kept[i] = this.innerSockets[i];
+      }
+    }
+    this.innerSockets = kept;
+  }
   createSockets(count, radius, side) {
     let sockets = [];
     for (let i = 0; i < count; i++) {
@@ -47,7 +59,7 @@ class Ring {
     rotate(this.rotation);
     stroke(this.fillColor);
     strokeWeight(this.thickness);
-    ellipse(0,0,this.middleRadius*2,this.middleRadius*2);
+    ellipse(0, 0, this.middleRadius * 2, this.middleRadius * 2);
     // strokeWeight(0.2);
     // ellipse(0, 0, this.innerRadius * 2, this.innerRadius * 2);
     // ellipse(0, 0, this.outerRadius * 2, this.outerRadius * 2);
